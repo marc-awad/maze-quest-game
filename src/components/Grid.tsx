@@ -6,22 +6,25 @@ interface TileData {
   col: number
   type: string
   isRevealed: boolean
+  isClickable: boolean
 }
 
 interface GridProps {
   gridData: string[][]
   rows: number
   cols: number
-  revealedTiles: Set<string> // ← État externe
+  revealedTiles: Set<string>
   onTileClick: (row: number, col: number) => void
+  isAdjacent: (row: number, col: number, revealedTiles: Set<string>) => boolean
 }
 
 const Grid: React.FC<GridProps> = ({
   gridData,
   rows,
   cols,
-  revealedTiles, // ← Reçu en prop
+  revealedTiles,
   onTileClick,
+  isAdjacent,
 }) => {
   const handleTileClick = (row: number, col: number) => {
     const key = `${row}-${col}`
@@ -34,11 +37,15 @@ const Grid: React.FC<GridProps> = ({
 
   const getTileData = (row: number, col: number): TileData => {
     const key = `${row}-${col}`
+    const isRevealed = revealedTiles.has(key)
+    const isClickable = !isRevealed && isAdjacent(row, col, revealedTiles)
+
     return {
       row,
       col,
       type: gridData[row][col],
-      isRevealed: revealedTiles.has(key),
+      isRevealed,
+      isClickable,
     }
   }
 

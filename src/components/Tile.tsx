@@ -21,6 +21,7 @@ interface TileData {
   col: number
   type: string
   isRevealed: boolean
+  isClickable: boolean
 }
 
 interface TileProps {
@@ -98,7 +99,11 @@ const Tile: React.FC<TileProps> = ({ data, onClick }) => {
 
   const getTileColor = () => {
     if (!data.isRevealed) {
-      return "bg-slate-700 hover:bg-slate-600 text-slate-400"
+      // Feedback visuel sur les tuiles cliquables
+      if (data.isClickable) {
+        return "bg-slate-600 hover:bg-slate-500 text-slate-300 ring-2 ring-blue-400 ring-opacity-50"
+      }
+      return "bg-slate-700 text-slate-500 opacity-50"
     }
 
     const type = data.type
@@ -116,23 +121,30 @@ const Tile: React.FC<TileProps> = ({ data, onClick }) => {
     return "bg-slate-200"
   }
 
+  const getCursor = () => {
+    if (data.isRevealed) return "cursor-default"
+    if (data.isClickable) return "cursor-pointer"
+    return "cursor-not-allowed"
+  }
+
   return (
     <button
       onClick={onClick}
       className={`
         ${getTileColor()}
+        ${getCursor()}
         aspect-square
         flex items-center justify-center
         border border-slate-400
         transition-all duration-200
-        hover:scale-105
-        active:scale-95
-        ${!data.isRevealed ? "cursor-pointer" : "cursor-default"}
+        ${data.isClickable ? "hover:scale-105 active:scale-95" : ""}
         rounded-md
         shadow-sm
       `}
-      disabled={data.isRevealed}
-      aria-label={`Tile at row ${data.row}, column ${data.col}`}
+      disabled={data.isRevealed || !data.isClickable}
+      aria-label={`Tile at row ${data.row}, column ${data.col}${
+        data.isClickable ? " - clickable" : ""
+      }`}
     >
       {getTileIcon()}
     </button>

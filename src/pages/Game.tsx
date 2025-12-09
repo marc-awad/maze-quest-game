@@ -32,13 +32,41 @@ export default function Game() {
     }
   }, [level])
 
+  const isAdjacent = (
+    row: number,
+    col: number,
+    revealedTiles: Set<string>
+  ): boolean => {
+    const adjacentPositions = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]
+
+    return adjacentPositions.some(([dRow, dCol]) => {
+      const adjacentKey = `${row + dRow}-${col + dCol}`
+      return revealedTiles.has(adjacentKey)
+    })
+  }
+
   const handleTileClick = (row: number, col: number) => {
     if (!level) return
 
     const key = `${row}-${col}`
-    const tileType = level.grid[row][col]
 
+    if (revealedTiles.has(key)) {
+      return
+    }
+
+    if (!isAdjacent(row, col, revealedTiles)) {
+      console.log(`Tuile [${row}, ${col}] non adjacente - clic ignoré`)
+      return
+    }
+
+    const tileType = level.grid[row][col]
     console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
+
     setRevealedTiles((prev) => new Set([...prev, key]))
   }
 
@@ -99,6 +127,7 @@ export default function Game() {
           cols={level.cols}
           revealedTiles={revealedTiles}
           onTileClick={handleTileClick}
+          isAdjacent={isAdjacent}
         />
       </div>
     </div>
