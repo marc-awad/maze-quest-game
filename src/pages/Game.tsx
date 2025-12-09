@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react"
-import { usePlayer } from "../utils/PlayerContext"
-import { fetchLevel } from "../services/apiService"
-import type { Level } from "../services/apiService"
+import { fetchLevel, postHighscore, getHighscoresByLevel } from "../services/apiService"
+import type { Level, Highscore } from "../services/apiService"
 import Grid from "../components/Grid"
-import { RotateCw, Trophy, ArrowRight } from "lucide-react"
-import { postHighscore } from "../services/apiService"
+import { RotateCw, Trophy, ArrowRight, Crown, Medal } from "lucide-react"
+import { usePlayer } from "../utils/PlayerContext"
 
 type GameStatus = "playing" | "won" | "lost"
 
@@ -19,6 +18,9 @@ export default function Game() {
     col: number
   } | null>(null)
   const [gameStatus, setGameStatus] = useState<GameStatus>("playing")
+  const [highscores, setHighscores] = useState<Highscore[]>([])
+  const [loadingScores, setLoadingScores] = useState(false)
+  const [currentScoreId, setCurrentScoreId] = useState<number | null>(null)
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -44,15 +46,43 @@ export default function Game() {
     }
   }, [level])
 
-  // Détection de victoire à chaque changement de position
+  const loadHighscores = async () => {
+    if (!level) return
+    
+    try {
+      setLoadingScores(true)
+      const scores = await getHighscoresByLevel(level.id, 10)
+      setHighscores(scores)
+    } catch (error) {
+      console.error("Erreur chargement highscores:", error)
+    } finally {
+      setLoadingScores(false)
+    }
+  }
+
+  const handleVictory = async () => {
+    if (!level) return
+
+    try {
+      const newScore = await postHighscore({
+        playerName: playerName || "Anonyme",
+        score: revealedTiles.size,
+        levelId: level.id
+      })
+      setCurrentScoreId(newScore.id)
+      await loadHighscores()
+    } catch (error) {
+      console.error("Erreur enregistrement score:", error)
+    }
+  }
+
   useEffect(() => {
     if (level && playerPosition && gameStatus === "playing") {
-      // Vérifier si le joueur a atteint la sortie
       if (
         playerPosition.row === level.end.row &&
         playerPosition.col === level.end.col
       ) {
-        console.log("VICTOIRE ! Le joueur a atteint la sortie !")
+        console.log("🎉 VICTOIRE ! Le joueur a atteint la sortie !")
         setGameStatus("won")
         handleVictory()
       }
@@ -130,12 +160,19 @@ export default function Game() {
       setRevealedTiles(new Set([startKey]))
       setPlayerPosition({ row: level.start.row, col: level.start.col })
       setGameStatus("playing")
+      setCurrentScoreId(null)
     }
   }
 
   const goToNextLevel = () => {
-    // TODO: Implémenter la navigation vers le niveau suivant
     console.log("Passage au niveau suivant...")
+  }
+
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />
+    if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />
+    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />
+    return null
   }
 
   if (loading) {
@@ -158,18 +195,6 @@ export default function Game() {
   }
 
   if (!level) return null
-
-  const handleVictory = async () => {
-    try {
-      await postHighscore({
-        playerName: playerName || "Anonyme",
-        score: revealedTiles.size,
-        levelId: level.id,
-      })
-    } catch (error) {
-      console.error("Erreur enregistrement score:", error)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-8">
@@ -210,24 +235,22 @@ export default function Game() {
           gameStatus={gameStatus}
         />
 
-        {/* Modal de victoire */}
         {gameStatus === "won" && (
-          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in">
-            <div className="bg-white rounded-2xl p-8 max-w-md mx-4 shadow-2xl transform animate-scale-in">
-              <div className="text-center">
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 shadow-2xl transform animate-scale-in max-h-[90vh] overflow-y-auto">
+              <div className="text-center mb-6">
                 <div className="mb-4 flex justify-center">
                   <div className="bg-yellow-100 rounded-full p-4">
                     <Trophy className="w-16 h-16 text-yellow-500" />
                   </div>
                 </div>
-
+                
                 <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                  Victoire !
+                  Victoire ! 🎉
                 </h2>
-
-                <p className="text-gray-600 mb-6">
-                  {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à
-                  atteindre la sortie !
+                
+                <p className="text-gray-600 mb-4">
+                  {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à atteindre la sortie !
                 </p>
 
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -241,32 +264,103 @@ export default function Game() {
                     <div>
                       <p className="text-gray-500">Score</p>
                       <p className="text-2xl font-bold text-indigo-600">
-                        {Math.round(
-                          (revealedTiles.size / (level.rows * level.cols)) * 100
-                        )}
-                        %
+                        {Math.round((revealedTiles.size / (level.rows * level.cols)) * 100)}%
                       </p>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={resetLevel}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    <RotateCw size={18} />
-                    Rejouer
-                  </button>
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  Top 10 Highscores
+                </h3>
 
-                  <button
-                    onClick={goToNextLevel}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
-                    Niveau suivant
-                    <ArrowRight size={18} />
-                  </button>
-                </div>
+                {loadingScores ? (
+                  <div className="text-center py-8 text-gray-500">
+                    Chargement des scores...
+                  </div>
+                ) : highscores.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucun score enregistré pour ce niveau
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-indigo-600 text-white">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Rang</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Pseudo</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">Score</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {highscores.map((score, index) => {
+                          const isCurrentPlayer = score.id === currentScoreId
+                          return (
+                            <tr
+                              key={score.id}
+                              className={`transition-colors ${
+                                isCurrentPlayer
+                                  ? "bg-yellow-50 border-l-4 border-yellow-500"
+                                  : "hover:bg-gray-100"
+                              }`}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  {getRankIcon(index + 1)}
+                                  <span className={`font-semibold ${
+                                    index < 3 ? "text-indigo-600" : "text-gray-600"
+                                  }`}>
+                                    #{index + 1}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`${
+                                  isCurrentPlayer ? "font-bold text-indigo-700" : "text-gray-700"
+                                }`}>
+                                  {score.playerName}
+                                  {isCurrentPlayer && (
+                                    <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full">
+                                      TOI
+                                    </span>
+                                  )}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`font-bold ${
+                                  isCurrentPlayer ? "text-indigo-700" : "text-gray-700"
+                                }`}>
+                                  {score.score}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={resetLevel}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <RotateCw size={18} />
+                  Rejouer
+                </button>
+                
+                <button
+                  onClick={goToNextLevel}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  Niveau suivant
+                  <ArrowRight size={18} />
+                </button>
               </div>
             </div>
           </div>
