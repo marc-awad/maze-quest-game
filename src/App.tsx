@@ -1,10 +1,26 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
+import { PlayerProvider, usePlayer } from "./utils/PlayerContext"
+import HomePage from "./pages/HomePage"
 import Game from "./pages/Game"
 
-const App = () => {
+function AppRoutes() {
+  const { setPlayerName } = usePlayer()
+
   return (
-    <>
-      <Game></Game>
-    </>
+    <Routes>
+      <Route path="/" element={<HomePage onSetPlayerName={setPlayerName} />} />
+      <Route path="/game" element={<Game />} />
+    </Routes>
+  )
+}
+
+function App() {
+  return (
+    <PlayerProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </PlayerProvider>
   )
 }
 
