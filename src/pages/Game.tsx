@@ -2,7 +2,9 @@ import { useEffect, useState } from "react"
 import { fetchLevel } from "../services/apiService"
 import type { Level } from "../services/apiService"
 import Grid from "../components/Grid"
-import { RotateCw } from "lucide-react"
+import { RotateCw, Trophy, ArrowRight } from "lucide-react"
+
+type GameStatus = "playing" | "won" | "lost"
 
 export default function Game() {
   const [level, setLevel] = useState<Level | null>(null)
@@ -13,6 +15,7 @@ export default function Game() {
     row: number
     col: number
   } | null>(null)
+  const [gameStatus, setGameStatus] = useState<GameStatus>("playing")
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -33,50 +36,58 @@ export default function Game() {
     if (level) {
       const startKey = `${level.start.row}-${level.start.col}`
       setRevealedTiles(new Set([startKey]))
-      // Position du joueur initialisée sur la case départ (S)
       setPlayerPosition({ row: level.start.row, col: level.start.col })
+      setGameStatus("playing")
     }
   }, [level])
 
-  // Fonction pour vérifier si une tuile est adjacente à une tuile révélée
+  // Détection de victoire à chaque changement de position
+  useEffect(() => {
+    if (level && playerPosition && gameStatus === "playing") {
+      // Vérifier si le joueur a atteint la sortie
+      if (
+        playerPosition.row === level.end.row &&
+        playerPosition.col === level.end.col
+      ) {
+        console.log("VICTOIRE ! Le joueur a atteint la sortie !")
+        setGameStatus("won")
+      }
+    }
+  }, [playerPosition, level, gameStatus])
+
   const isAdjacent = (
     row: number,
     col: number,
     revealedTiles: Set<string>
   ): boolean => {
-    // Positions relatives : haut, bas, gauche, droite (pas de diagonales)
     const adjacentPositions = [
-      [-1, 0], // haut
-      [1, 0], // bas
-      [0, -1], // gauche
-      [0, 1], // droite
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
     ]
 
-    // Vérifie si au moins une tuile adjacente est révélée
     return adjacentPositions.some(([dRow, dCol]) => {
       const adjacentKey = `${row + dRow}-${col + dCol}`
       return revealedTiles.has(adjacentKey)
     })
   }
 
-  // Fonction pour vérifier si une tuile est adjacente à la position du joueur
   const isAdjacentToPlayer = (row: number, col: number): boolean => {
     if (!playerPosition) return false
 
     const rowDiff = Math.abs(row - playerPosition.row)
     const colDiff = Math.abs(col - playerPosition.col)
 
-    // Adjacent si différence de 1 sur une seule dimension (pas de diagonale)
     return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)
   }
 
   const handleTileClick = (row: number, col: number) => {
-    if (!level) return
+    if (!level || gameStatus !== "playing") return
 
     const key = `${row}-${col}`
     const tileType = level.grid[row][col]
 
-    // Empêcher le clic sur les tuiles déjà révélées (sauf si c'est la position du joueur)
     const isAlreadyRevealed = revealedTiles.has(key)
     const isPlayerTile =
       playerPosition?.row === row && playerPosition?.col === col
@@ -85,7 +96,6 @@ export default function Game() {
       return
     }
 
-    // Empêcher le clic sur les tuiles non adjacentes AU JOUEUR
     if (!isAdjacentToPlayer(row, col)) {
       console.log(
         `Tuile [${row}, ${col}] non adjacente au joueur - clic ignoré`
@@ -95,19 +105,15 @@ export default function Game() {
 
     console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
 
-    // Révéler la tuile
     if (!isAlreadyRevealed) {
       setRevealedTiles((prev) => new Set([...prev, key]))
     }
 
-    // Vérifier le type de tuile avant déplacement
-    // Le joueur ne peut pas traverser les murs (W)
     if (tileType === "W") {
       console.log(`Mur détecté à [${row}, ${col}] - déplacement impossible`)
       return
     }
 
-    // Déplacement du joueur lors du clic sur une tuile adjacente de type chemin (C) ou sortie (E)
     if (tileType === "C" || tileType === "E" || tileType === "S") {
       setPlayerPosition({ row, col })
       console.log(`Joueur déplacé à [${row}, ${col}]`)
@@ -119,7 +125,13 @@ export default function Game() {
       const startKey = `${level.start.row}-${level.start.col}`
       setRevealedTiles(new Set([startKey]))
       setPlayerPosition({ row: level.start.row, col: level.start.col })
+      setGameStatus("playing")
     }
+  }
+
+  const goToNextLevel = () => {
+    // TODO: Implémenter la navigation vers le niveau suivant
+    console.log("Passage au niveau suivant...")
   }
 
   if (loading) {
@@ -155,6 +167,10 @@ export default function Game() {
             <span>
               {level.rows}×{level.cols}
             </span>
+            <span>•</span>
+            <span className="font-semibold">
+              Statut: {gameStatus === "won" ? "🎉 GAGNÉ" : "En cours"}
+            </span>
           </div>
 
           <button
@@ -175,8 +191,100 @@ export default function Game() {
           isAdjacent={isAdjacent}
           isAdjacentToPlayer={isAdjacentToPlayer}
           playerPosition={playerPosition}
+          gameStatus={gameStatus}
         />
+
+        {/* Modal de victoire */}
+        {gameStatus === "won" && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl p-8 max-w-md mx-4 shadow-2xl transform animate-scale-in">
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="bg-yellow-100 rounded-full p-4">
+                    <Trophy className="w-16 h-16 text-yellow-500" />
+                  </div>
+                </div>
+
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                  Victoire !
+                </h2>
+
+                <p className="text-gray-600 mb-6">
+                  Tu as réussi à atteindre la sortie !
+                </p>
+
+                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Cases révélées</p>
+                      <p className="text-2xl font-bold text-indigo-600">
+                        {revealedTiles.size}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Score</p>
+                      <p className="text-2xl font-bold text-indigo-600">
+                        {Math.round(
+                          (revealedTiles.size / (level.rows * level.cols)) * 100
+                        )}
+                        %
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={resetLevel}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <RotateCw size={18} />
+                    Rejouer
+                  </button>
+
+                  <button
+                    onClick={goToNextLevel}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    Niveau suivant
+                    <ArrowRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes scale-in {
+          from {
+            transform: scale(0.9);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+
+        .animate-scale-in {
+          animation: scale-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   )
 }
