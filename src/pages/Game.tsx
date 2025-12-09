@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { usePlayer } from "../utils/PlayerContext"
 import { fetchLevel } from "../services/apiService"
 import type { Level } from "../services/apiService"
 import Grid from "../components/Grid"
@@ -7,6 +8,7 @@ import { RotateCw, Trophy, ArrowRight } from "lucide-react"
 type GameStatus = "playing" | "won" | "lost"
 
 export default function Game() {
+  const { playerName } = usePlayer()
   const [level, setLevel] = useState<Level | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -210,7 +212,8 @@ export default function Game() {
                 </h2>
 
                 <p className="text-gray-600 mb-6">
-                  Tu as réussi à atteindre la sortie !
+                  {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à
+                  atteindre la sortie !
                 </p>
 
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
