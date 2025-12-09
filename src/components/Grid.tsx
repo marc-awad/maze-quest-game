@@ -7,6 +7,7 @@ interface TileData {
   type: string
   isRevealed: boolean
   isClickable: boolean
+  hasPlayer: boolean
 }
 
 interface GridProps {
@@ -16,6 +17,8 @@ interface GridProps {
   revealedTiles: Set<string>
   onTileClick: (row: number, col: number) => void
   isAdjacent: (row: number, col: number, revealedTiles: Set<string>) => boolean
+  isAdjacentToPlayer: (row: number, col: number) => boolean
+  playerPosition: { row: number; col: number } | null
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -25,6 +28,8 @@ const Grid: React.FC<GridProps> = ({
   revealedTiles,
   onTileClick,
   isAdjacent,
+  isAdjacentToPlayer,
+  playerPosition,
 }) => {
   const handleTileClick = (row: number, col: number) => {
     const key = `${row}-${col}`
@@ -38,7 +43,12 @@ const Grid: React.FC<GridProps> = ({
   const getTileData = (row: number, col: number): TileData => {
     const key = `${row}-${col}`
     const isRevealed = revealedTiles.has(key)
-    const isClickable = !isRevealed && isAdjacent(row, col, revealedTiles)
+    // Une tuile est cliquable si elle est adjacente AU JOUEUR et non révélée
+    const isClickable = !isRevealed && isAdjacentToPlayer(row, col)
+    const hasPlayer =
+      playerPosition !== null &&
+      playerPosition.row === row &&
+      playerPosition.col === col
 
     return {
       row,
@@ -46,6 +56,7 @@ const Grid: React.FC<GridProps> = ({
       type: gridData[row][col],
       isRevealed,
       isClickable,
+      hasPlayer,
     }
   }
 

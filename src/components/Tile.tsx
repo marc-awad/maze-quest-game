@@ -14,6 +14,7 @@ import {
   Pickaxe,
   Waves,
   Package,
+  User,
 } from "lucide-react"
 
 interface TileData {
@@ -22,6 +23,7 @@ interface TileData {
   type: string
   isRevealed: boolean
   isClickable: boolean
+  hasPlayer: boolean
 }
 
 interface TileProps {
@@ -31,6 +33,11 @@ interface TileProps {
 
 const Tile: React.FC<TileProps> = ({ data, onClick }) => {
   const getTileIcon = () => {
+    // Affichage visuel du joueur sur sa position actuelle
+    if (data.hasPlayer && data.isRevealed) {
+      return <User className="w-6 h-6 text-blue-600" />
+    }
+
     if (!data.isRevealed) {
       return <CircleDot className="w-6 h-6" />
     }
