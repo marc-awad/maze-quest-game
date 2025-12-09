@@ -4,6 +4,7 @@ import { fetchLevel } from "../services/apiService"
 import type { Level } from "../services/apiService"
 import Grid from "../components/Grid"
 import { RotateCw, Trophy, ArrowRight } from "lucide-react"
+import { postHighscore } from "../services/apiService"
 
 type GameStatus = "playing" | "won" | "lost"
 
@@ -53,6 +54,7 @@ export default function Game() {
       ) {
         console.log("VICTOIRE ! Le joueur a atteint la sortie !")
         setGameStatus("won")
+        handleVictory()
       }
     }
   }, [playerPosition, level, gameStatus])
@@ -156,6 +158,18 @@ export default function Game() {
   }
 
   if (!level) return null
+
+  const handleVictory = async () => {
+    try {
+      await postHighscore({
+        playerName: playerName || "Anonyme",
+        score: revealedTiles.size,
+        levelId: level.id,
+      })
+    } catch (error) {
+      console.error("Erreur enregistrement score:", error)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-8">
