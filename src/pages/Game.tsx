@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react"
 import { fetchLevel } from "../services/apiService"
 import type { Level } from "../services/apiService"
+import Grid from "../components/Grid"
+import { RotateCw } from "lucide-react"
 
 export default function Game() {
   const [level, setLevel] = useState<Level | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [revealedTiles, setRevealedTiles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -22,14 +25,82 @@ export default function Game() {
     loadLevel()
   }, [])
 
-  if (loading) return <p>Chargement du niveau...</p>
-  if (error) return <p>Erreur : {error}</p>
+  useEffect(() => {
+    if (level) {
+      const startKey = `${level.start.row}-${level.start.col}`
+      setRevealedTiles(new Set([startKey]))
+    }
+  }, [level])
+
+  const handleTileClick = (row: number, col: number) => {
+    if (!level) return
+
+    const key = `${row}-${col}`
+    const tileType = level.grid[row][col]
+
+    console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
+    setRevealedTiles((prev) => new Set([...prev, key]))
+  }
+
+  const resetLevel = () => {
+    if (level) {
+      const startKey = `${level.start.row}-${level.start.col}`
+      setRevealedTiles(new Set([startKey]))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <p className="text-white text-2xl">Chargement du niveau...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <div className="bg-red-500 text-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-2xl font-bold mb-2">Erreur</h2>
+          <p>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!level) return null
 
   return (
-    <div>
-      <h1>{level?.name}</h1>
-      <p>{level?.description}</p>
-      <pre>{JSON.stringify(level?.grid, null, 2)}</pre>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-8">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-bold text-white mb-2">{level.name}</h1>
+          <p className="text-white opacity-80 mb-1">{level.description}</p>
+          <div className="flex justify-center gap-4 text-sm text-white opacity-70">
+            <span>Difficulté : {level.difficulty}</span>
+            <span>•</span>
+            <span>
+              {level.rows}×{level.cols}
+            </span>
+          </div>
+
+          <button
+            onClick={resetLevel}
+            className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors"
+          >
+            <RotateCw size={18} />
+            Réinitialiser
+          </button>
+        </div>
+
+        <Grid
+          gridData={level.grid}
+          rows={level.rows}
+          cols={level.cols}
+          revealedTiles={revealedTiles}
+          onTileClick={handleTileClick}
+        />
+      </div>
     </div>
   )
 }
