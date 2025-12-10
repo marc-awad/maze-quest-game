@@ -19,6 +19,7 @@ interface GridProps {
   isAdjacent: (row: number, col: number, revealedTiles: Set<string>) => boolean
   isAdjacentToPlayer: (row: number, col: number) => boolean
   playerPosition: { row: number; col: number } | null
+  gameStatus: string
 }
 
 const Grid: React.FC<GridProps> = ({
@@ -27,7 +28,6 @@ const Grid: React.FC<GridProps> = ({
   cols,
   revealedTiles,
   onTileClick,
-  isAdjacent,
   isAdjacentToPlayer,
   playerPosition,
 }) => {

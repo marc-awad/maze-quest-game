@@ -8,13 +8,7 @@ import {
 } from "../services/apiService"
 import type { Level, Highscore } from "../services/apiService"
 import Grid from "../components/Grid"
-import {
-  RotateCw,
-  Home,
-  Crown,
-  Medal,
-
-} from "lucide-react"
+import { RotateCw, Home } from "lucide-react"
 import { usePlayer } from "../utils/PlayerContext"
 
 type GameStatus = "playing" | "won" | "lost"
@@ -211,13 +205,6 @@ export default function Game() {
       setSaveStatus("idle")
       setSaveError(null)
     }
-  }
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />
-    if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />
-    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />
-    return null
   }
 
   if (loading) {
