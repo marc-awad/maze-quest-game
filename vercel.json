@@ -1,6 +1,3 @@
 {
-  "rewrites": [
-    { "source": "/game/:levelId", "destination": "/" },
-    { "source": "/(.*)", "destination": "/" }
-  ]
+  "rewrites": [{ "source": "/game/:levelId", "destination": "/" }]
 }
