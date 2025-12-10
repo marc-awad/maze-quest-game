@@ -198,17 +198,17 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ status: "ok", message: "FlipLabyrinth API is running" })
 
   // niveaux
-  if (url.startsWith("/api/levels")) {
+  if (url.startsWith("/levels")) {
     if (method === "GET") {
       const parts = url.split("/")
-      if (parts.length === 4) {
-        // /api/levels/:id
-        const id = Number(parts[3])
+      if (parts.length === 2 && parts[1]) {
+        // /levels/:id
+        const id = Number(parts[1])
         const level = levels.find((l) => l.id === id)
         if (!level) return res.status(404).json({ error: "Level not found" })
         return res.json(level)
       } else {
-        // /api/levels
+        // /levels
         const summary = levels.map((l) => ({
           id: l.id,
           name: l.name,
