@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react"
-import { fetchLevel, postHighscore, getHighscoresByLevel } from "../services/apiService"
+import {
+  fetchLevel,
+  postHighscore,
+  getHighscoresByLevel,
+} from "../services/apiService"
 import type { Level, Highscore } from "../services/apiService"
 import Grid from "../components/Grid"
-import { RotateCw, Trophy, ArrowRight, Crown, Medal } from "lucide-react"
+import {
+  RotateCw,
+  Trophy,
+  ArrowRight,
+  Crown,
+  Medal,
+  AlertCircle,
+  CheckCircle,
+  Loader,
+} from "lucide-react"
 import { usePlayer } from "../utils/PlayerContext"
 
 type GameStatus = "playing" | "won" | "lost"
+type SaveStatus = "idle" | "saving" | "success" | "error"
 
 export default function Game() {
   const { playerName } = usePlayer()
@@ -21,6 +35,10 @@ export default function Game() {
   const [highscores, setHighscores] = useState<Highscore[]>([])
   const [loadingScores, setLoadingScores] = useState(false)
   const [currentScoreId, setCurrentScoreId] = useState<number | null>(null)
+
+  // Nouveaux états pour le feedback
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -43,12 +61,14 @@ export default function Game() {
       setRevealedTiles(new Set([startKey]))
       setPlayerPosition({ row: level.start.row, col: level.start.col })
       setGameStatus("playing")
+      setSaveStatus("idle")
+      setSaveError(null)
     }
   }, [level])
 
   const loadHighscores = async () => {
     if (!level) return
-    
+
     try {
       setLoadingScores(true)
       const scores = await getHighscoresByLevel(level.id, 10)
@@ -60,19 +80,34 @@ export default function Game() {
     }
   }
 
-  const handleVictory = async () => {
+  const handleVictory = async (retryCount = 0) => {
     if (!level) return
 
     try {
+      setSaveStatus("saving")
+      setSaveError(null)
+
       const newScore = await postHighscore({
         playerName: playerName || "Anonyme",
         score: revealedTiles.size,
-        levelId: level.id
+        levelId: level.id,
       })
+
       setCurrentScoreId(newScore.id)
       await loadHighscores()
-    } catch (error) {
+      setSaveStatus("success")
+    } catch (error: any) {
       console.error("Erreur enregistrement score:", error)
+
+      // Retry une fois en cas d'échec réseau
+      if (retryCount < 1) {
+        console.log("Tentative de réenregistrement...")
+        setTimeout(() => handleVictory(retryCount + 1), 1500)
+        return
+      }
+
+      setSaveStatus("error")
+      setSaveError(error.message || "Impossible de contacter le serveur")
     }
   }
 
@@ -82,7 +117,7 @@ export default function Game() {
         playerPosition.row === level.end.row &&
         playerPosition.col === level.end.col
       ) {
-        console.log("🎉 VICTOIRE ! Le joueur a atteint la sortie !")
+        console.log("VICTOIRE ! Le joueur a atteint la sortie !")
         setGameStatus("won")
         handleVictory()
       }
@@ -161,6 +196,8 @@ export default function Game() {
       setPlayerPosition({ row: level.start.row, col: level.start.col })
       setGameStatus("playing")
       setCurrentScoreId(null)
+      setSaveStatus("idle")
+      setSaveError(null)
     }
   }
 
@@ -244,14 +281,58 @@ export default function Game() {
                     <Trophy className="w-16 h-16 text-yellow-500" />
                   </div>
                 </div>
-                
+
                 <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                  Victoire ! 🎉
+                  Victoire !
                 </h2>
-                
+
                 <p className="text-gray-600 mb-4">
-                  {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à atteindre la sortie !
+                  {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à
+                  atteindre la sortie !
                 </p>
+
+                {/* FEEDBACK VISUEL DE SAUVEGARDE */}
+                {saveStatus === "saving" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 animate-pulse">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader className="w-5 h-5 text-blue-600 animate-spin" />
+                      <p className="text-blue-700 text-sm font-medium">
+                        💾 Enregistrement du score en cours...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {saveStatus === "success" && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <p className="text-green-700 text-sm font-medium">
+                        Score enregistré avec succès !
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {saveStatus === "error" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-2 mb-2">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 text-left">
+                        <p className="text-red-700 text-sm font-medium mb-1">
+                          ❌ Erreur lors de l'enregistrement
+                        </p>
+                        <p className="text-red-600 text-xs">{saveError}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleVictory(0)}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 px-4 rounded transition-colors"
+                    >
+                      Réessayer l'enregistrement
+                    </button>
+                  </div>
+                )}
 
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -264,7 +345,10 @@ export default function Game() {
                     <div>
                       <p className="text-gray-500">Score</p>
                       <p className="text-2xl font-bold text-indigo-600">
-                        {Math.round((revealedTiles.size / (level.rows * level.cols)) * 100)}%
+                        {Math.round(
+                          (revealedTiles.size / (level.rows * level.cols)) * 100
+                        )}
+                        %
                       </p>
                     </div>
                   </div>
@@ -279,6 +363,7 @@ export default function Game() {
 
                 {loadingScores ? (
                   <div className="text-center py-8 text-gray-500">
+                    <Loader className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Chargement des scores...
                   </div>
                 ) : highscores.length === 0 ? (
@@ -290,9 +375,15 @@ export default function Game() {
                     <table className="w-full">
                       <thead className="bg-indigo-600 text-white">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">Rang</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold">Pseudo</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold">Score</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">
+                            Rang
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">
+                            Pseudo
+                          </th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold">
+                            Score
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -310,17 +401,25 @@ export default function Game() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   {getRankIcon(index + 1)}
-                                  <span className={`font-semibold ${
-                                    index < 3 ? "text-indigo-600" : "text-gray-600"
-                                  }`}>
+                                  <span
+                                    className={`font-semibold ${
+                                      index < 3
+                                        ? "text-indigo-600"
+                                        : "text-gray-600"
+                                    }`}
+                                  >
                                     #{index + 1}
                                   </span>
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <span className={`${
-                                  isCurrentPlayer ? "font-bold text-indigo-700" : "text-gray-700"
-                                }`}>
+                                <span
+                                  className={`${
+                                    isCurrentPlayer
+                                      ? "font-bold text-indigo-700"
+                                      : "text-gray-700"
+                                  }`}
+                                >
                                   {score.playerName}
                                   {isCurrentPlayer && (
                                     <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full">
@@ -330,9 +429,13 @@ export default function Game() {
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <span className={`font-bold ${
-                                  isCurrentPlayer ? "text-indigo-700" : "text-gray-700"
-                                }`}>
+                                <span
+                                  className={`font-bold ${
+                                    isCurrentPlayer
+                                      ? "text-indigo-700"
+                                      : "text-gray-700"
+                                  }`}
+                                >
                                   {score.score}
                                 </span>
                               </td>
@@ -353,7 +456,7 @@ export default function Game() {
                   <RotateCw size={18} />
                   Rejouer
                 </button>
-                
+
                 <button
                   onClick={goToNextLevel}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
