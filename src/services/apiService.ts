@@ -20,6 +20,19 @@ export interface Level {
   items: any[]
 }
 
+// Interface pour un résumé de niveau (liste)
+export interface LevelSummary {
+  id: number
+  name: string
+  description: string
+  rows: number
+  cols: number
+  difficulty: string
+  hasCombat: boolean
+  hasKeys: boolean
+  hasObstacles: boolean
+}
+
 // Interface pour un highscore
 export interface Highscore {
   id: number
@@ -40,7 +53,33 @@ export interface CreateHighscorePayload {
    NIVEAUX
 =============================================== */
 
-// Fonction pour récupérer un niveau par son ID
+/**
+ * Récupère la liste de tous les niveaux (résumé)
+ * @returns Liste des niveaux disponibles
+ */
+export async function fetchLevels(): Promise<LevelSummary[]> {
+  try {
+    const response = await fetch(`${BASE_URL}/levels`)
+    if (!response.ok) {
+      throw new Error(
+        `Erreur ${response.status} : Impossible de récupérer les niveaux`
+      )
+    }
+    const data: LevelSummary[] = await response.json()
+    return data
+  } catch (error: any) {
+    console.error("fetchLevels error:", error)
+    throw new Error(
+      error.message || "Erreur inconnue lors de la récupération des niveaux"
+    )
+  }
+}
+
+/**
+ * Récupère un niveau complet par son ID
+ * @param levelId - ID du niveau
+ * @returns Niveau complet avec la grille
+ */
 export async function fetchLevel(levelId: number): Promise<Level> {
   try {
     const response = await fetch(`${BASE_URL}/levels/${levelId}`)
