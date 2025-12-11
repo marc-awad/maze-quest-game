@@ -195,6 +195,66 @@ export default function Game() {
     }
   }
 
+  // Gestion du clavier
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ignore si le jeu n'est pas en cours ou si on n'a pas de position
+      if (!level || !playerPosition || gameStatus !== "playing") return
+
+      // Ignore si on est dans un input ou textarea
+      const target = event.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return
+
+      let dx = 0
+      let dy = 0
+
+      switch (event.key) {
+        case "ArrowUp":
+          dy = -1
+          event.preventDefault()
+          break
+        case "ArrowDown":
+          dy = 1
+          event.preventDefault()
+          break
+        case "ArrowLeft":
+          dx = -1
+          event.preventDefault()
+          break
+        case "ArrowRight":
+          dx = 1
+          event.preventDefault()
+          break
+        default:
+          return
+      }
+
+      // Calcule la nouvelle position
+      const newRow = playerPosition.row + dy
+      const newCol = playerPosition.col + dx
+
+      // Vérifie que la nouvelle position est dans les limites
+      if (
+        newRow < 0 ||
+        newRow >= level.rows ||
+        newCol < 0 ||
+        newCol >= level.cols
+      ) {
+        console.log(`Position hors limites : [${newRow}, ${newCol}]`)
+        return
+      }
+
+      // Utilise la même logique que handleTileClick
+      handleTileClick(newRow, newCol)
+    }
+
+    window.addEventListener("keydown", handleKeyPress)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress)
+    }
+  }, [level, playerPosition, gameStatus, revealedTiles])
+
   const resetLevel = () => {
     if (level) {
       const startKey = `${level.start.row}-${level.start.col}`
@@ -249,7 +309,7 @@ export default function Game() {
             </span>
             <span>•</span>
             <span className="font-semibold">
-              Statut: {gameStatus === "won" ? "🎉 GAGNÉ" : "En cours"}
+              Statut: {gameStatus === "won" ? "GAGNÉ" : "En cours"}
             </span>
           </div>
 
