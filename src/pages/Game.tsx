@@ -18,6 +18,48 @@ import type { InventoryItem } from "../hooks/useInventory"
 type GameStatus = "playing" | "won" | "lost"
 type SaveStatus = "idle" | "saving" | "success" | "error"
 
+// Fonction pour mélanger la grille tout en préservant start et end
+function shuffleGrid(
+  originalGrid: string[][],
+  startPos: { row: number; col: number },
+  endPos: { row: number; col: number }
+): string[][] {
+  const rows = originalGrid.length
+  const cols = originalGrid[0].length
+
+  // Extraire toutes les cases sauf start et end
+  const tiles: Array<{ value: string; row: number; col: number }> = []
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // Ne pas inclure les positions de départ et d'arrivée
+      if (
+        !(r === startPos.row && c === startPos.col) &&
+        !(r === endPos.row && c === endPos.col)
+      ) {
+        tiles.push({ value: originalGrid[r][c], row: r, col: c })
+      }
+    }
+  }
+
+  // Mélanger les valeurs (Fisher-Yates shuffle)
+  const values = tiles.map((t) => t.value)
+  for (let i = values.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[values[i], values[j]] = [values[j], values[i]]
+  }
+
+  // Créer la nouvelle grille
+  const newGrid: string[][] = originalGrid.map((row) => [...row])
+
+  // Replacer les valeurs mélangées
+  tiles.forEach((tile, idx) => {
+    newGrid[tile.row][tile.col] = values[idx]
+  })
+
+  return newGrid
+}
+
 export default function Game() {
   const { levelId } = useParams<{ levelId: string }>()
   const navigate = useNavigate()
@@ -31,6 +73,7 @@ export default function Game() {
   } = useInventory()
 
   const [level, setLevel] = useState<Level | null>(null)
+  const [originalLevel, setOriginalLevel] = useState<Level | null>(null) // Garder l'original
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [revealedTiles, setRevealedTiles] = useState<Set<string>>(new Set())
@@ -40,7 +83,6 @@ export default function Game() {
   } | null>(null)
   const [gameStatus, setGameStatus] = useState<GameStatus>("playing")
   const [highscores, setHighscores] = useState<Highscore[]>([])
-  const [loadingScores, setLoadingScores] = useState(false)
   const [currentScoreId, setCurrentScoreId] = useState<number | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -63,6 +105,7 @@ export default function Game() {
     resetInventoryRef.current = resetInventory
   }, [resetInventory])
 
+  // Charger le niveau depuis l'API
   useEffect(() => {
     const loadLevel = async () => {
       if (!levelId) {
@@ -73,7 +116,11 @@ export default function Game() {
       try {
         setLoading(true)
         const data = await fetchLevel(Number(levelId))
-        setLevel(data)
+        setOriginalLevel(data) // Sauvegarder l'original
+
+        // Créer une version mélangée
+        const shuffledGrid = shuffleGrid(data.grid, data.start, data.end)
+        setLevel({ ...data, grid: shuffledGrid })
       } catch (err: any) {
         setError(err.message)
       } finally {
@@ -89,7 +136,7 @@ export default function Game() {
     }
   }, [playerName, navigate])
 
-  // FIX: Utiliser la ref au lieu de la dépendance directe
+  // Initialiser le jeu quand le niveau est chargé
   useEffect(() => {
     if (level) {
       const startKey = `${level.start.row}-${level.start.col}`
@@ -102,22 +149,8 @@ export default function Game() {
       setDefeatedEnemies(new Set())
       setCurrentBattle(null)
       setBlockMessage(null)
-      resetInventoryRef.current() // ← Utiliser la ref
+      resetInventoryRef.current()
       victoryHandledRef.current = false
-    }
-  }, [level]) // ← Retirer resetInventory des dépendances
-
-  const loadHighscores = useCallback(async () => {
-    if (!level) return
-
-    try {
-      setLoadingScores(true)
-      const scores = await getHighscoresByLevel(level.id, 10)
-      setHighscores(scores)
-    } catch (error) {
-      console.error("Erreur chargement highscores:", error)
-    } finally {
-      setLoadingScores(false)
     }
   }, [level])
 
@@ -414,10 +447,22 @@ export default function Game() {
   }, [level, playerPosition, gameStatus, currentBattle, handleTileClick])
 
   const resetLevel = useCallback(() => {
-    if (level) {
-      const startKey = `${level.start.row}-${level.start.col}`
+    if (originalLevel) {
+      // Re-mélanger la grille à chaque reset
+      const shuffledGrid = shuffleGrid(
+        originalLevel.grid,
+        originalLevel.start,
+        originalLevel.end
+      )
+      setLevel({ ...originalLevel, grid: shuffledGrid })
+
+      // Réinitialiser tous les états
+      const startKey = `${originalLevel.start.row}-${originalLevel.start.col}`
       setRevealedTiles(new Set([startKey]))
-      setPlayerPosition({ row: level.start.row, col: level.start.col })
+      setPlayerPosition({
+        row: originalLevel.start.row,
+        col: originalLevel.start.col,
+      })
       setGameStatus("playing")
       setCurrentScoreId(null)
       setSaveStatus("idle")
@@ -426,10 +471,10 @@ export default function Game() {
       setDefeatedEnemies(new Set())
       setCurrentBattle(null)
       setBlockMessage(null)
-      resetInventoryRef.current() // ← Utiliser la ref
+      resetInventoryRef.current()
       victoryHandledRef.current = false
     }
-  }, [level]) // ← Retirer resetInventory
+  }, [originalLevel])
 
   const isAdjacent = (
     row: number,
@@ -528,7 +573,7 @@ export default function Game() {
             className="mt-4 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors"
           >
             <RotateCw size={18} />
-            Réinitialiser
+            Réinitialiser (nouvelle grille)
           </button>
         </div>
 
@@ -557,7 +602,7 @@ export default function Game() {
             revealedTilesCount={revealedTiles.size}
             totalTiles={level.rows * level.cols}
             highscores={highscores}
-            loadingScores={loadingScores}
+            loadingScores={false}
             currentScoreId={currentScoreId}
             saveStatus={saveStatus}
             saveError={saveError}
