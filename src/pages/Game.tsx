@@ -554,7 +554,7 @@ export default function Game() {
         {gameStatus === "won" && level && (
           <VictoryModal
             playerName={playerName}
-            revealedTilesCount={currentScore}
+            revealedTilesCount={revealedTiles.size}
             totalTiles={level.rows * level.cols}
             highscores={highscores}
             loadingScores={loadingScores}

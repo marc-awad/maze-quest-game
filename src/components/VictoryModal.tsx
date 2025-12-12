@@ -133,7 +133,8 @@ export default function VictoryModal({
               <div>
                 <p className="text-gray-500">Score</p>
                 <p className="text-2xl font-bold text-indigo-600">
-                  {Math.round((revealedTilesCount / totalTiles) * 100)}%
+                  {highscores.find((s) => s.id === currentScoreId)?.score ??
+                    Math.round((revealedTilesCount / totalTiles) * 100)}
                 </p>
               </div>
             </div>
