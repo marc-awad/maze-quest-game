@@ -35,6 +35,9 @@ export default function Game() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Compteur de déplacements
+  const [moveCount, setMoveCount] = useState<number>(0)
+
   useEffect(() => {
     const loadLevel = async () => {
       if (!levelId) {
@@ -69,6 +72,7 @@ export default function Game() {
       setGameStatus("playing")
       setSaveStatus("idle")
       setSaveError(null)
+      setMoveCount(0)
     }
   }, [level])
 
@@ -86,6 +90,17 @@ export default function Game() {
     }
   }
 
+  // Calcul du score basé sur les déplacements
+  const calculateScore = (): number => {
+    if (!level) return 0
+
+    const maxPossibleScore = level.rows * level.cols * 10
+    const penaltyPerMove = 5
+    const calculatedScore = maxPossibleScore - moveCount * penaltyPerMove
+
+    return Math.max(0, calculatedScore)
+  }
+
   const handleVictory = async (retryCount = 0) => {
     if (!level) return
 
@@ -93,9 +108,11 @@ export default function Game() {
       setSaveStatus("saving")
       setSaveError(null)
 
+      const finalScore = calculateScore()
+
       const newScore = await postHighscore({
         playerName: playerName || "Anonyme",
-        score: revealedTiles.size,
+        score: finalScore,
         levelId: level.id,
       })
 
@@ -124,6 +141,9 @@ export default function Game() {
         playerPosition.col === level.end.col
       ) {
         console.log("VICTOIRE ! Le joueur a atteint la sortie !")
+        console.log(
+          `Score final : ${calculateScore()} (${moveCount} déplacements)`
+        )
         setGameStatus("won")
         handleVictory()
       }
@@ -163,14 +183,17 @@ export default function Game() {
     const key = `${row}-${col}`
     const tileType = level.grid[row][col]
 
-    const isAlreadyRevealed = revealedTiles.has(key)
+    // MODIFIÉ : Suppression de la vérification qui bloquait le retour sur cases déjà révélées
+    // On vérifie seulement si c'est la position actuelle du joueur
     const isPlayerTile =
       playerPosition?.row === row && playerPosition?.col === col
 
-    if (isAlreadyRevealed && !isPlayerTile) {
+    // Si on clique sur la case actuelle du joueur, on ignore
+    if (isPlayerTile) {
       return
     }
 
+    // Vérification d'adjacence : on ne peut se déplacer que vers une case adjacente
     if (!isAdjacentToPlayer(row, col)) {
       console.log(
         `Tuile [${row}, ${col}] non adjacente au joueur - clic ignoré`
@@ -180,28 +203,33 @@ export default function Game() {
 
     console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
 
+    // MODIFIÉ : On révèle la case seulement si elle n'était pas déjà révélée
+    // Cela permet de garder trace des cases visitées sans bloquer le retour en arrière
+    const isAlreadyRevealed = revealedTiles.has(key)
     if (!isAlreadyRevealed) {
       setRevealedTiles((prev) => new Set([...prev, key]))
     }
 
+    // Vérification du mur : on ne peut pas traverser les murs
     if (tileType === "W") {
       console.log(`Mur détecté à [${row}, ${col}] - déplacement impossible`)
       return
     }
 
-    if (tileType === "C" || tileType === "E" || tileType === "S") {
-      setPlayerPosition({ row, col })
-      console.log(`Joueur déplacé à [${row}, ${col}]`)
-    }
+    // MODIFIÉ : Déplacement autorisé sur TOUTES les cases non-mur (C, E, S ou cases déjà visitées)
+    // Le joueur peut maintenant revenir en arrière librement
+    setMoveCount((prev) => prev + 1)
+    setPlayerPosition({ row, col })
+    console.log(
+      `Joueur déplacé à [${row}, ${col}] - Déplacement #${moveCount + 1}`
+    )
   }
 
   // Gestion du clavier
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Ignore si le jeu n'est pas en cours ou si on n'a pas de position
       if (!level || !playerPosition || gameStatus !== "playing") return
 
-      // Ignore si on est dans un input ou textarea
       const target = event.target as HTMLElement
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return
 
@@ -229,11 +257,9 @@ export default function Game() {
           return
       }
 
-      // Calcule la nouvelle position
       const newRow = playerPosition.row + dy
       const newCol = playerPosition.col + dx
 
-      // Vérifie que la nouvelle position est dans les limites
       if (
         newRow < 0 ||
         newRow >= level.rows ||
@@ -244,7 +270,6 @@ export default function Game() {
         return
       }
 
-      // Utilise la même logique que handleTileClick
       handleTileClick(newRow, newCol)
     }
 
@@ -253,7 +278,7 @@ export default function Game() {
     return () => {
       window.removeEventListener("keydown", handleKeyPress)
     }
-  }, [level, playerPosition, gameStatus, revealedTiles])
+  }, [level, playerPosition, gameStatus, revealedTiles, moveCount])
 
   const resetLevel = () => {
     if (level) {
@@ -264,6 +289,7 @@ export default function Game() {
       setCurrentScoreId(null)
       setSaveStatus("idle")
       setSaveError(null)
+      setMoveCount(0)
     }
   }
 
@@ -288,6 +314,8 @@ export default function Game() {
 
   if (!level) return null
 
+  const currentScore = calculateScore()
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 py-8">
       <div className="container mx-auto px-4">
@@ -309,8 +337,25 @@ export default function Game() {
             </span>
             <span>•</span>
             <span className="font-semibold">
-              Statut: {gameStatus === "won" ? "GAGNÉ" : "En cours"}
+              Statut: {gameStatus === "won" ? "🎉 GAGNÉ" : "En cours"}
             </span>
+          </div>
+
+          {/* Affichage du compteur de déplacements et du score */}
+          <div className="mt-3 bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-3 inline-block">
+            <div className="flex gap-6 text-white">
+              <div>
+                <p className="text-xs opacity-70">Déplacements</p>
+                <p className="text-2xl font-bold">{moveCount}</p>
+              </div>
+              <div className="border-l border-white opacity-30"></div>
+              <div>
+                <p className="text-xs opacity-70">Score actuel</p>
+                <p className="text-2xl font-bold text-yellow-300">
+                  {currentScore}
+                </p>
+              </div>
+            </div>
           </div>
 
           <button
@@ -337,7 +382,7 @@ export default function Game() {
         {gameStatus === "won" && level && (
           <VictoryModal
             playerName={playerName}
-            revealedTilesCount={revealedTiles.size}
+            revealedTilesCount={currentScore}
             totalTiles={level.rows * level.cols}
             highscores={highscores}
             loadingScores={loadingScores}
