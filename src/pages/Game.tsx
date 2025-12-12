@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import VictoryModal from "../components/VictoryModal"
+import BattleModal from "../components/BattleModal"
+import Inventory from "../components/Inventory"
 import {
   fetchLevel,
   postHighscore,
@@ -8,8 +10,10 @@ import {
 } from "../services/apiService"
 import type { Level, Highscore } from "../services/apiService"
 import Grid from "../components/Grid"
-import { RotateCw, Home } from "lucide-react"
+import { RotateCw, Home, AlertTriangle } from "lucide-react"
 import { usePlayer } from "../utils/PlayerContext"
+import { useInventory } from "../hooks/useInventory"
+import type { InventoryItem } from "../hooks/useInventory"
 
 type GameStatus = "playing" | "won" | "lost"
 type SaveStatus = "idle" | "saving" | "success" | "error"
@@ -18,6 +22,14 @@ export default function Game() {
   const { levelId } = useParams<{ levelId: string }>()
   const navigate = useNavigate()
   const { playerName } = usePlayer()
+  const {
+    inventory,
+    addItem,
+    hasWeapon,
+    hasKey,
+    reset: resetInventory,
+  } = useInventory()
+
   const [level, setLevel] = useState<Level | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -30,13 +42,26 @@ export default function Game() {
   const [highscores, setHighscores] = useState<Highscore[]>([])
   const [loadingScores, setLoadingScores] = useState(false)
   const [currentScoreId, setCurrentScoreId] = useState<number | null>(null)
-
-  // Nouveaux états pour le feedback
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
   const [saveError, setSaveError] = useState<string | null>(null)
-
-  // Compteur de déplacements
   const [moveCount, setMoveCount] = useState<number>(0)
+
+  // États RPG
+  const [defeatedEnemies, setDefeatedEnemies] = useState<Set<string>>(new Set())
+  const [currentBattle, setCurrentBattle] = useState<{
+    enemyName: string
+    position: { row: number; col: number }
+  } | null>(null)
+  const [blockMessage, setBlockMessage] = useState<string | null>(null)
+
+  // Refs pour éviter les boucles infinies
+  const victoryHandledRef = useRef(false)
+  const resetInventoryRef = useRef(resetInventory)
+
+  // Mettre à jour la ref quand resetInventory change
+  useEffect(() => {
+    resetInventoryRef.current = resetInventory
+  }, [resetInventory])
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -64,6 +89,7 @@ export default function Game() {
     }
   }, [playerName, navigate])
 
+  // FIX: Utiliser la ref au lieu de la dépendance directe
   useEffect(() => {
     if (level) {
       const startKey = `${level.start.row}-${level.start.col}`
@@ -73,10 +99,15 @@ export default function Game() {
       setSaveStatus("idle")
       setSaveError(null)
       setMoveCount(0)
+      setDefeatedEnemies(new Set())
+      setCurrentBattle(null)
+      setBlockMessage(null)
+      resetInventoryRef.current() // ← Utiliser la ref
+      victoryHandledRef.current = false
     }
-  }, [level])
+  }, [level]) // ← Retirer resetInventory des dépendances
 
-  const loadHighscores = async () => {
+  const loadHighscores = useCallback(async () => {
     if (!level) return
 
     try {
@@ -88,51 +119,58 @@ export default function Game() {
     } finally {
       setLoadingScores(false)
     }
-  }
+  }, [level])
 
-  // Calcul du score basé sur les déplacements
-  const calculateScore = (): number => {
+  const calculateScore = useCallback((): number => {
     if (!level) return 0
-
     const maxPossibleScore = level.rows * level.cols * 10
     const penaltyPerMove = 5
     const calculatedScore = maxPossibleScore - moveCount * penaltyPerMove
-
     return Math.max(0, calculatedScore)
-  }
+  }, [level, moveCount])
 
-  const handleVictory = async (retryCount = 0) => {
-    if (!level) return
+  const handleVictory = useCallback(
+    async (retryCount = 0) => {
+      if (!level || !playerName) return
 
-    try {
-      setSaveStatus("saving")
-      setSaveError(null)
+      try {
+        setSaveStatus("saving")
+        setSaveError(null)
 
-      const finalScore = calculateScore()
+        const maxPossibleScore = level.rows * level.cols * 10
+        const penaltyPerMove = 5
+        const finalScore = Math.max(
+          0,
+          maxPossibleScore - moveCount * penaltyPerMove
+        )
 
-      const newScore = await postHighscore({
-        playerName: playerName || "Anonyme",
-        score: finalScore,
-        levelId: level.id,
-      })
+        const newScore = await postHighscore({
+          playerName: playerName || "Anonyme",
+          score: finalScore,
+          levelId: level.id,
+        })
 
-      setCurrentScoreId(newScore.id)
-      await loadHighscores()
-      setSaveStatus("success")
-    } catch (error: any) {
-      console.error("Erreur enregistrement score:", error)
+        setCurrentScoreId(newScore.id)
 
-      // Retry une fois en cas d'échec réseau
-      if (retryCount < 1) {
-        console.log("Tentative de réenregistrement...")
-        setTimeout(() => handleVictory(retryCount + 1), 1500)
-        return
+        const scores = await getHighscoresByLevel(level.id, 10)
+        setHighscores(scores)
+
+        setSaveStatus("success")
+      } catch (error: any) {
+        console.error("Erreur enregistrement score:", error)
+
+        if (retryCount < 1) {
+          console.log("Tentative de réenregistrement...")
+          setTimeout(() => handleVictory(retryCount + 1), 1500)
+          return
+        }
+
+        setSaveStatus("error")
+        setSaveError(error.message || "Impossible de contacter le serveur")
       }
-
-      setSaveStatus("error")
-      setSaveError(error.message || "Impossible de contacter le serveur")
-    }
-  }
+    },
+    [level, playerName, moveCount]
+  )
 
   useEffect(() => {
     if (level && playerPosition && gameStatus === "playing") {
@@ -141,94 +179,192 @@ export default function Game() {
         playerPosition.col === level.end.col
       ) {
         console.log("VICTOIRE ! Le joueur a atteint la sortie !")
-        console.log(
-          `Score final : ${calculateScore()} (${moveCount} déplacements)`
-        )
         setGameStatus("won")
-        handleVictory()
       }
     }
   }, [playerPosition, level, gameStatus])
 
-  const isAdjacent = (
-    row: number,
-    col: number,
-    revealedTiles: Set<string>
-  ): boolean => {
-    const adjacentPositions = [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-    ]
-
-    return adjacentPositions.some(([dRow, dCol]) => {
-      const adjacentKey = `${row + dRow}-${col + dCol}`
-      return revealedTiles.has(adjacentKey)
-    })
-  }
-
-  const isAdjacentToPlayer = (row: number, col: number): boolean => {
-    if (!playerPosition) return false
-
-    const rowDiff = Math.abs(row - playerPosition.row)
-    const colDiff = Math.abs(col - playerPosition.col)
-
-    return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)
-  }
-
-  const handleTileClick = (row: number, col: number) => {
-    if (!level || gameStatus !== "playing") return
-
-    const key = `${row}-${col}`
-    const tileType = level.grid[row][col]
-
-    // MODIFIÉ : Suppression de la vérification qui bloquait le retour sur cases déjà révélées
-    // On vérifie seulement si c'est la position actuelle du joueur
-    const isPlayerTile =
-      playerPosition?.row === row && playerPosition?.col === col
-
-    // Si on clique sur la case actuelle du joueur, on ignore
-    if (isPlayerTile) {
-      return
+  useEffect(() => {
+    if (gameStatus === "won" && !victoryHandledRef.current) {
+      victoryHandledRef.current = true
+      handleVictory()
     }
+  }, [gameStatus, handleVictory])
 
-    // Vérification d'adjacence : on ne peut se déplacer que vers une case adjacente
-    if (!isAdjacentToPlayer(row, col)) {
-      console.log(
-        `Tuile [${row}, ${col}] non adjacente au joueur - clic ignoré`
+  const isAdjacentToPlayer = useCallback(
+    (row: number, col: number): boolean => {
+      if (!playerPosition) return false
+
+      const rowDiff = Math.abs(row - playerPosition.row)
+      const colDiff = Math.abs(col - playerPosition.col)
+
+      return (
+        (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1)
       )
-      return
+    },
+    [playerPosition]
+  )
+
+  const getEnemyName = (monsterType: string): string => {
+    const names: Record<string, string> = {
+      goblin: "Gobelin",
+      slime: "Slime",
+      orc: "Orc",
     }
+    return names[monsterType] || "Monstre"
+  }
 
-    console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
+  const handleTileClick = useCallback(
+    (row: number, col: number) => {
+      if (!level || gameStatus !== "playing" || currentBattle) return
 
-    // MODIFIÉ : On révèle la case seulement si elle n'était pas déjà révélée
-    // Cela permet de garder trace des cases visitées sans bloquer le retour en arrière
-    const isAlreadyRevealed = revealedTiles.has(key)
-    if (!isAlreadyRevealed) {
+      const key = `${row}-${col}`
+      const tileType = level.grid[row][col]
+
+      const isPlayerTile =
+        playerPosition?.row === row && playerPosition?.col === col
+
+      if (isPlayerTile) return
+
+      if (!isAdjacentToPlayer(row, col)) {
+        console.log(
+          `Tuile [${row}, ${col}] non adjacente au joueur - clic ignoré`
+        )
+        return
+      }
+
+      console.log(`Tuile cliquée : [${row}, ${col}] - Type: ${tileType}`)
+
+      // Révéler la case si elle n'est pas déjà révélée
+      const isAlreadyRevealed = revealedTiles.has(key)
+      if (!isAlreadyRevealed) {
+        setRevealedTiles((prev) => new Set([...prev, key]))
+      }
+
+      if (tileType.startsWith("D:")) {
+        const doorColor = tileType.split(":")[1]
+        if (!hasKey(doorColor)) {
+          setBlockMessage(
+            `🚪 Porte ${doorColor} verrouillée ! Trouvez la clé ${doorColor}.`
+          )
+          setTimeout(() => setBlockMessage(null), 2500)
+          return
+        }
+        console.log(`✅ Porte ${doorColor} déverrouillée avec la clé`)
+      }
+
+      if (tileType.startsWith("M:")) {
+        const monsterType = tileType.split(":")[1]
+        const enemyKey = `${row}-${col}`
+
+        if (defeatedEnemies.has(enemyKey)) {
+          console.log("Monstre déjà vaincu, passage libre")
+        } else {
+          if (!hasWeapon()) {
+            setBlockMessage(`⚔️ Monstre bloque le passage ! Trouvez une arme.`)
+            setTimeout(() => setBlockMessage(null), 2500)
+            return
+          }
+
+          setCurrentBattle({
+            enemyName: getEnemyName(monsterType),
+            position: { row, col },
+          })
+          return
+        }
+      }
+
+      if (tileType === "W") {
+        console.log(`Mur détecté à [${row}, ${col}] - déplacement impossible`)
+        return
+      }
+
+      setMoveCount((prev) => prev + 1)
+      setPlayerPosition({ row, col })
+      console.log(`Joueur déplacé à [${row}, ${col}]`)
+
+      if (tileType.startsWith("K:")) {
+        const keyColor = tileType.split(":")[1]
+        const keyItem: InventoryItem = {
+          id: `key_${keyColor}`,
+          type: "key",
+          name: `Clé ${keyColor}`,
+          color: keyColor,
+        }
+        addItem(keyItem)
+        console.log(`🗝️ Clé ${keyColor} ramassée`)
+      }
+
+      if (tileType.startsWith("W:")) {
+        const weaponId = tileType.split(":")[1] || "sword"
+        const weaponItem: InventoryItem = {
+          id: weaponId,
+          type: "weapon",
+          name: "Épée",
+        }
+        addItem(weaponItem)
+        console.log(`⚔️ Arme ramassée`)
+      }
+
+      if (tileType.startsWith("I:")) {
+        const itemId = tileType.split(":")[1]
+        const itemNames: Record<string, string> = {
+          water_bucket: "Seau d'eau",
+          pickaxe: "Pioche",
+          swim_boots: "Bottes amphibies",
+        }
+        const itemObj: InventoryItem = {
+          id: itemId,
+          type: "item",
+          name: itemNames[itemId] || "Objet",
+        }
+        addItem(itemObj)
+        console.log(`📦 Item ${itemObj.name} ramassé`)
+      }
+    },
+    [
+      level,
+      gameStatus,
+      currentBattle,
+      playerPosition,
+      isAdjacentToPlayer,
+      hasKey,
+      hasWeapon,
+      defeatedEnemies,
+      revealedTiles,
+      addItem,
+    ]
+  )
+
+  const handleBattleEnd = useCallback(() => {
+    if (!currentBattle) return
+
+    const enemyKey = `${currentBattle.position.row}-${currentBattle.position.col}`
+    setDefeatedEnemies((prev) => new Set([...prev, enemyKey]))
+
+    const key = `${currentBattle.position.row}-${currentBattle.position.col}`
+    if (!revealedTiles.has(key)) {
       setRevealedTiles((prev) => new Set([...prev, key]))
     }
 
-    // Vérification du mur : on ne peut pas traverser les murs
-    if (tileType === "W") {
-      console.log(`Mur détecté à [${row}, ${col}] - déplacement impossible`)
-      return
-    }
-
-    // MODIFIÉ : Déplacement autorisé sur TOUTES les cases non-mur (C, E, S ou cases déjà visitées)
-    // Le joueur peut maintenant revenir en arrière librement
     setMoveCount((prev) => prev + 1)
-    setPlayerPosition({ row, col })
-    console.log(
-      `Joueur déplacé à [${row}, ${col}] - Déplacement #${moveCount + 1}`
-    )
-  }
+    setPlayerPosition(currentBattle.position)
 
-  // Gestion du clavier
+    console.log(
+      `✅ Combat terminé, joueur déplacé à [${currentBattle.position.row}, ${currentBattle.position.col}]`
+    )
+    setCurrentBattle(null)
+  }, [currentBattle, revealedTiles])
+
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      if (!level || !playerPosition || gameStatus !== "playing") return
+      if (
+        !level ||
+        !playerPosition ||
+        gameStatus !== "playing" ||
+        currentBattle
+      )
+        return
 
       const target = event.target as HTMLElement
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return
@@ -274,13 +410,10 @@ export default function Game() {
     }
 
     window.addEventListener("keydown", handleKeyPress)
+    return () => window.removeEventListener("keydown", handleKeyPress)
+  }, [level, playerPosition, gameStatus, currentBattle, handleTileClick])
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyPress)
-    }
-  }, [level, playerPosition, gameStatus, revealedTiles, moveCount])
-
-  const resetLevel = () => {
+  const resetLevel = useCallback(() => {
     if (level) {
       const startKey = `${level.start.row}-${level.start.col}`
       setRevealedTiles(new Set([startKey]))
@@ -290,7 +423,29 @@ export default function Game() {
       setSaveStatus("idle")
       setSaveError(null)
       setMoveCount(0)
+      setDefeatedEnemies(new Set())
+      setCurrentBattle(null)
+      setBlockMessage(null)
+      resetInventoryRef.current() // ← Utiliser la ref
+      victoryHandledRef.current = false
     }
+  }, [level]) // ← Retirer resetInventory
+
+  const isAdjacent = (
+    row: number,
+    col: number,
+    revealedTiles: Set<string>
+  ): boolean => {
+    const adjacentPositions = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]
+    return adjacentPositions.some(([dRow, dCol]) => {
+      const adjacentKey = `${row + dRow}-${col + dCol}`
+      return revealedTiles.has(adjacentKey)
+    })
   }
 
   if (loading) {
@@ -341,7 +496,6 @@ export default function Game() {
             </span>
           </div>
 
-          {/* Affichage du compteur de déplacements et du score */}
           <div className="mt-3 bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-3 inline-block">
             <div className="flex gap-6 text-white">
               <div>
@@ -357,6 +511,17 @@ export default function Game() {
               </div>
             </div>
           </div>
+
+          <div className="mt-4 flex justify-center">
+            <Inventory items={inventory} />
+          </div>
+
+          {blockMessage && (
+            <div className="mt-4 bg-red-500 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 max-w-md mx-auto animate-pulse">
+              <AlertTriangle size={20} />
+              <span className="font-semibold">{blockMessage}</span>
+            </div>
+          )}
 
           <button
             onClick={resetLevel}
@@ -379,6 +544,13 @@ export default function Game() {
           gameStatus={gameStatus}
         />
 
+        {currentBattle && (
+          <BattleModal
+            enemyName={currentBattle.enemyName}
+            onBattleEnd={handleBattleEnd}
+          />
+        )}
+
         {gameStatus === "won" && level && (
           <VictoryModal
             playerName={playerName}
@@ -399,32 +571,15 @@ export default function Game() {
 
       <style>{`
         @keyframes fade-in {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-
         @keyframes scale-in {
-          from {
-            transform: scale(0.9);
-            opacity: 0;
-          }
-          to {
-            transform: scale(1);
-            opacity: 1;
-          }
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
         }
-
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
-        }
+        .animate-fade-in { animation: fade-in 0.3s ease-out; }
+        .animate-scale-in { animation: scale-in 0.3s ease-out; }
       `}</style>
     </div>
   )

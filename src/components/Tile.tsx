@@ -15,6 +15,7 @@ import {
   Waves,
   Package,
   User,
+  Sword,
 } from "lucide-react"
 
 interface TileData {
@@ -49,6 +50,11 @@ const Tile: React.FC<TileProps> = ({ data, onClick }) => {
     if (type === "E") return <Trophy className="w-6 h-6 text-yellow-600" />
     if (type === "W") return <Square className="w-6 h-6 text-gray-600" />
     if (type === "C") return <Sparkles className="w-6 h-6 text-blue-400" />
+
+    // ===== ARMES (nouveau) =====
+    if (type.startsWith("W:")) {
+      return <Sword className="w-6 h-6 text-red-600" />
+    }
 
     // Monstres
     if (type.startsWith("M:")) {
@@ -106,7 +112,6 @@ const Tile: React.FC<TileProps> = ({ data, onClick }) => {
 
   const getTileColor = () => {
     if (!data.isRevealed) {
-      // Feedback visuel sur les tuiles cliquables
       if (data.isClickable) {
         return "bg-slate-600 hover:bg-slate-500 text-slate-300 ring-2 ring-blue-400 ring-opacity-50"
       }
@@ -119,6 +124,7 @@ const Tile: React.FC<TileProps> = ({ data, onClick }) => {
     if (type === "E") return "bg-yellow-400"
     if (type === "W") return "bg-gray-800"
     if (type === "C") return "bg-blue-50"
+    if (type.startsWith("W:")) return "bg-red-100" // Arme
     if (type.startsWith("M:")) return "bg-red-100"
     if (type.startsWith("O:")) return "bg-orange-100"
     if (type.startsWith("K:")) return "bg-purple-100"
