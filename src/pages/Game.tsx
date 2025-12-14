@@ -8,6 +8,7 @@ import HealthBar from "../components/HealthBar"
 import AdvancedBattleModal from "../components/AdvancedBattleModal"
 import Inventory from "../components/Inventory"
 import Grid from "../components/Grid"
+import TimerDisplay from "../components/TimerDisplay"
 
 // Hooks personnalisés
 import { usePlayer } from "../utils/PlayerContext"
@@ -19,6 +20,8 @@ import { useTileInteraction } from "../hooks/useTileInteraction"
 import { usePlayerMovement } from "../hooks/usePlayerMovement"
 import { useHighscore } from "../hooks/useHighscore"
 import { usePlayerHP } from "../hooks/usePlayerHP"
+import { useGameTimer } from "../hooks/useGameTimer"
+import { useAdvancedScore } from "../hooks/useAdvancedScore"
 
 // Types
 import type { Enemy } from "../hooks/types"
@@ -45,12 +48,20 @@ export default function Game() {
     revealTile,
     movePlayer,
     setGameStatus,
-    calculateScore,
     resetGameState,
   } = useGameState(level)
 
   // Hook : HP du joueur
   const { playerHP, maxHP, setHP, resetHP } = usePlayerHP(level)
+
+  // Hook : Timer de jeu
+  const { elapsedTime, isRunning, formattedTime, resetTimer } = useGameTimer(
+    level,
+    gameStatus
+  )
+
+  // Hook : Score avancé
+  const { calculateAdvancedScore, resetMetrics } = useAdvancedScore()
 
   // Hook : Inventaire (armes, clés, objets)
   const {
@@ -64,6 +75,7 @@ export default function Game() {
   // Hook : Combats avancés
   const {
     currentBattle,
+    defeatedEnemies,
     isEnemyDefeated,
     startBattle,
     executeTurn,
@@ -90,6 +102,30 @@ export default function Game() {
     isValidPosition,
     isPlayerTile,
   } = usePlayerMovement(level, playerPosition, gameStatus)
+
+  // Calcul du score avancé
+  const calculateScore = useCallback(() => {
+    if (!level) return 0
+    const breakdown = calculateAdvancedScore(
+      level,
+      revealedTiles.size,
+      playerHP,
+      maxHP,
+      defeatedEnemies.size,
+      elapsedTime,
+      moveCount
+    )
+    return breakdown.totalScore
+  }, [
+    level,
+    revealedTiles.size,
+    playerHP,
+    maxHP,
+    defeatedEnemies.size,
+    elapsedTime,
+    moveCount,
+    calculateAdvancedScore,
+  ])
 
   // Hook : Highscores
   const {
@@ -357,6 +393,8 @@ export default function Game() {
     resetMessages() // Reset messages
     resetHighscore() // Reset état highscore
     resetHP() // Reset HP du joueur
+    resetTimer() // Reset timer
+    resetMetrics() // Reset métriques de score
   }, [
     resetLevel,
     resetGameState,
@@ -365,6 +403,8 @@ export default function Game() {
     resetMessages,
     resetHighscore,
     resetHP,
+    resetTimer,
+    resetMetrics,
   ])
 
   // === RENDU CONDITIONNEL ===
@@ -428,19 +468,29 @@ export default function Game() {
             </span>
           </div>
 
-          {/* Score et déplacements */}
-          <div className="mt-3 bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-3 inline-block">
-            <div className="flex gap-6 text-white">
-              <div>
-                <p className="text-xs opacity-70">Déplacements</p>
-                <p className="text-2xl font-bold">{moveCount}</p>
-              </div>
-              <div className="border-l border-white opacity-30"></div>
-              <div>
-                <p className="text-xs opacity-70">Score actuel</p>
-                <p className="text-2xl font-bold text-yellow-300">
-                  {currentScore}
-                </p>
+          {/* Stats du jeu : Timer, Score, Déplacements */}
+          <div className="mt-3 flex justify-center gap-4 flex-wrap">
+            {/* Timer */}
+            <TimerDisplay
+              formattedTime={formattedTime}
+              isRunning={isRunning}
+              size="medium"
+            />
+
+            {/* Score et déplacements */}
+            <div className="bg-white bg-opacity-10 backdrop-blur-sm rounded-lg p-3">
+              <div className="flex gap-6 text-white">
+                <div>
+                  <p className="text-xs opacity-70">Déplacements</p>
+                  <p className="text-2xl font-bold">{moveCount}</p>
+                </div>
+                <div className="border-l border-white opacity-30"></div>
+                <div>
+                  <p className="text-xs opacity-70">Score actuel</p>
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {currentScore}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -532,6 +582,16 @@ export default function Game() {
             hasNextLevel={level.id < 4}
             onResetLevel={handleResetLevel}
             onRetry={() => saveHighscore(0)}
+            scoreBreakdown={calculateAdvancedScore(
+              level,
+              revealedTiles.size,
+              playerHP,
+              maxHP,
+              defeatedEnemies.size,
+              elapsedTime,
+              moveCount
+            )}
+            elapsedTime={elapsedTime}
           />
         )}
 
@@ -543,9 +603,17 @@ export default function Game() {
                 ☠️ Game Over
               </h2>
               <p className="text-white text-lg mb-2">Vous avez été vaincu...</p>
-              <p className="text-gray-300 text-sm mb-6">
-                HP restants : {playerHP} / {maxHP}
-              </p>
+              <div className="bg-black bg-opacity-30 rounded-lg p-3 mb-6">
+                <p className="text-gray-300 text-sm mb-1">
+                  HP restants : {playerHP} / {maxHP}
+                </p>
+                <p className="text-gray-300 text-sm mb-1">
+                  Temps : {formattedTime}
+                </p>
+                <p className="text-yellow-300 text-lg font-bold">
+                  Score : {currentScore}
+                </p>
+              </div>
               <button
                 onClick={handleResetLevel}
                 className="bg-white text-red-900 px-8 py-3 rounded-lg font-bold hover:bg-gray-200 transition-all active:scale-95 shadow-lg"

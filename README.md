@@ -104,16 +104,16 @@
 
 - [x] Plusieurs niveaux distincts
 - [x] Passage entre niveaux
-- [ ] Score avancé :
-  - [ ] temps
-  - [ ] combats
-  - [ ] tuiles révélées
-  - [ ] pénalités
+- [x] Score avancé :
+  - [x] temps
+  - [x] combats
+  - [x] tuiles révélées
+  - [x] pénalités
 - [ ] Page règles / tutoriel
 
 ### Améliorations
 
-- [ ] Timer
+- [x] Timer
 - [x] Historique des scores (Base de Données Vercel)
 - [ ] Variantes de gameplay
 

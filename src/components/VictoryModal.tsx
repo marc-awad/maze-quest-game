@@ -1,18 +1,10 @@
+import React, { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import {
-  Trophy,
-  ArrowRight,
-  Crown,
-  Medal,
-  AlertCircle,
-  CheckCircle,
-  Loader,
-  RotateCw,
-  Home,
-} from "lucide-react"
+import { Trophy, RotateCw, Home, ChevronRight, TrendingUp } from "lucide-react"
+import ScoreBreakdown from "./ScoreBreakdown"
+import type { ScoreBreakdown as ScoreBreakdownType } from "../hooks/useAdvancedScore"
 import type { Highscore } from "../services/apiService"
-
-type SaveStatus = "idle" | "saving" | "success" | "error"
+import type { SaveStatus } from "../hooks/useHighscore"
 
 interface VictoryModalProps {
   playerName: string
@@ -27,239 +19,216 @@ interface VictoryModalProps {
   hasNextLevel: boolean
   onResetLevel: () => void
   onRetry: () => void
+  scoreBreakdown?: ScoreBreakdownType
+  elapsedTime?: number
 }
 
-export default function VictoryModal({
+const VictoryModal: React.FC<VictoryModalProps> = ({
   playerName,
   revealedTilesCount,
   totalTiles,
   highscores,
-  loadingScores,
   currentScoreId,
   saveStatus,
   saveError,
   currentLevelId,
   hasNextLevel,
   onResetLevel,
-  onRetry,
-}: VictoryModalProps) {
+  scoreBreakdown,
+  elapsedTime = 0,
+}) => {
   const navigate = useNavigate()
+  const [showDetails, setShowDetails] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
 
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />
-    if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />
-    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />
-    return null
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${minutes}:${secs.toString().padStart(2, "0")}`
   }
 
-  const goToNextLevel = () => {
-    if (hasNextLevel) {
-      navigate(`/game/${currentLevelId + 1}`)
-    }
-  }
+  const currentScore = scoreBreakdown?.totalScore || 0
+  const playerRank = highscores.findIndex((h) => h.id === currentScoreId) + 1
 
-  const goToHome = () => {
-    navigate("/")
-  }
+  if (!isOpen) return null // si fermé, ne rien afficher
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 shadow-2xl transform animate-scale-in max-h-[90vh] overflow-y-auto">
-        <div className="text-center mb-6">
-          <div className="mb-4 flex justify-center">
-            <div className="bg-yellow-100 rounded-full p-4">
-              <Trophy className="w-16 h-16 text-yellow-500" />
+    <div
+      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in"
+      onClick={() => setIsOpen(false)} // clique en dehors pour fermer
+    >
+      <div
+        className="bg-gradient-to-br from-yellow-600 via-orange-600 to-red-600 rounded-2xl p-1 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+        onClick={(e) => e.stopPropagation()} // empêche fermeture si clic à l'intérieur
+      >
+        {/* Croix pour fermer */}
+        <button
+          onClick={() => setIsOpen(false)}
+          className="absolute top-4 right-4 text-white text-xl font-bold hover:text-gray-200"
+        >
+          ×
+        </button>
+
+        <div className="bg-gray-900 rounded-xl p-6">
+          {/* En-tête victoire */}
+          <div className="text-center mb-6">
+            <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-bounce" />
+            <h2 className="text-4xl font-bold text-white mb-2">
+              🎉 Victoire !
+            </h2>
+            <p className="text-gray-300">Félicitations {playerName} !</p>
+          </div>
+
+          {/* Statistiques principales */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-blue-900 bg-opacity-30 rounded-lg p-4 text-center">
+              <p className="text-blue-300 text-sm mb-1">Temps</p>
+              <p className="text-white text-2xl font-bold">
+                {formatTime(elapsedTime)}
+              </p>
+            </div>
+            <div className="bg-purple-900 bg-opacity-30 rounded-lg p-4 text-center">
+              <p className="text-purple-300 text-sm mb-1">Tuiles révélées</p>
+              <p className="text-white text-2xl font-bold">
+                {revealedTilesCount} / {totalTiles}
+              </p>
+            </div>
+            <div className="bg-green-900 bg-opacity-30 rounded-lg p-4 text-center">
+              <p className="text-green-300 text-sm mb-1">Ennemis vaincus</p>
+              <p className="text-white text-2xl font-bold">
+                {scoreBreakdown?.enemiesDefeated || 0}
+              </p>
             </div>
           </div>
 
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">Victoire !</h2>
-
-          <p className="text-gray-600 mb-4">
-            {playerName ? `Bravo ${playerName} ! ` : ""}Tu as réussi à atteindre
-            la sortie !
-          </p>
-
-          {/* FEEDBACK VISUEL DE SAUVEGARDE */}
-          {saveStatus === "saving" && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 animate-pulse">
-              <div className="flex items-center justify-center gap-2">
-                <Loader className="w-5 h-5 text-blue-600 animate-spin" />
-                <p className="text-blue-700 text-sm font-medium">
-                  Enregistrement du score en cours...
-                </p>
+          {/* Score principal */}
+          <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg p-6 mb-6 text-center">
+            <p className="text-white text-sm opacity-90 mb-2">Score final</p>
+            <p className="text-white text-5xl font-bold mb-2">
+              {currentScore.toLocaleString()}
+            </p>
+            {playerRank > 0 && (
+              <div className="flex items-center justify-center gap-2 text-white text-sm">
+                <TrendingUp className="w-4 h-4" />
+                <span>#{playerRank} sur le classement</span>
               </div>
-            </div>
-          )}
-
-          {saveStatus === "success" && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center justify-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <p className="text-green-700 text-sm font-medium">
-                  Score enregistré avec succès !
-                </p>
-              </div>
-            </div>
-          )}
-
-          {saveStatus === "error" && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-2 mb-2">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 text-left">
-                  <p className="text-red-700 text-sm font-medium mb-1">
-                    Erreur lors de l'enregistrement
-                  </p>
-                  <p className="text-red-600 text-xs">{saveError}</p>
-                </div>
-              </div>
-              <button
-                onClick={onRetry}
-                className="w-full bg-red-600 hover:bg-red-700 text-white text-sm py-2 px-4 rounded transition-colors"
-              >
-                Réessayer l'enregistrement
-              </button>
-            </div>
-          )}
-
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Cases révélées</p>
-                <p className="text-2xl font-bold text-indigo-600">
-                  {revealedTilesCount}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500">Score</p>
-                <p className="text-2xl font-bold text-indigo-600">
-                  {highscores.find((s) => s.id === currentScoreId)?.score ??
-                    Math.round((revealedTilesCount / totalTiles) * 100)}
-                </p>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
 
-        <div className="mb-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
-            Top 10 Highscores
-          </h3>
-
-          {loadingScores ? (
-            <div className="text-center py-8 text-gray-500">
-              <Loader className="w-6 h-6 animate-spin mx-auto mb-2" />
-              Chargement des scores...
-            </div>
-          ) : highscores.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              Aucun score enregistré pour ce niveau
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-indigo-600 text-white">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Rang
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Pseudo
-                    </th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold">
-                      Score
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {highscores.map((score, index) => {
-                    const isCurrentPlayer = score.id === currentScoreId
-                    return (
-                      <tr
-                        key={score.id}
-                        className={`transition-colors ${
-                          isCurrentPlayer
-                            ? "bg-yellow-50 border-l-4 border-yellow-500"
-                            : "hover:bg-gray-100"
-                        }`}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {getRankIcon(index + 1)}
-                            <span
-                              className={`font-semibold ${
-                                index < 3 ? "text-indigo-600" : "text-gray-600"
-                              }`}
-                            >
-                              #{index + 1}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`${
-                              isCurrentPlayer
-                                ? "font-bold text-indigo-700"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {score.playerName}
-                            {isCurrentPlayer && (
-                              <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full">
-                                TOI
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span
-                            className={`font-bold ${
-                              isCurrentPlayer
-                                ? "text-indigo-700"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {score.score}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-3 flex-wrap">
-          <button
-            onClick={goToHome}
-            className="flex-1 min-w-[120px] bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <Home size={18} />
-            Accueil
-          </button>
-
-          <button
-            onClick={onResetLevel}
-            className="flex-1 min-w-[120px] bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <RotateCw size={18} />
-            Rejouer
-          </button>
-
-          {hasNextLevel && (
+          {/* Bouton détails */}
+          {scoreBreakdown && (
             <button
-              onClick={goToNextLevel}
-              className="flex-1 min-w-[120px] bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+              onClick={() => setShowDetails(!showDetails)}
+              className="w-full mb-4 bg-gray-800 hover:bg-gray-700 text-white px-4 py-3 rounded-lg flex items-center justify-between transition-colors"
             >
-              Niveau suivant
-              <ArrowRight size={18} />
+              <span className="font-semibold">
+                {showDetails
+                  ? "📊 Masquer les détails"
+                  : "📊 Voir le détail du score"}
+              </span>
+              <ChevronRight
+                className={`w-5 h-5 transition-transform ${showDetails ? "rotate-90" : ""}`}
+              />
             </button>
           )}
+
+          {/* Détail du score */}
+          {showDetails && scoreBreakdown && (
+            <div className="mb-6 animate-scale-in">
+              <ScoreBreakdown breakdown={scoreBreakdown} showAnimation={true} />
+            </div>
+          )}
+
+          {/* Statut de sauvegarde */}
+          <div className="mb-6">
+            {saveStatus === "saving" && (
+              <p className="text-blue-400 text-sm text-center">
+                💾 Sauvegarde du score...
+              </p>
+            )}
+            {saveStatus === "success" && (
+              <p className="text-green-400 text-sm text-center">
+                ✅ Score enregistré avec succès !
+              </p>
+            )}
+            {saveStatus === "error" && (
+              <p className="text-red-400 text-sm text-center">❌ {saveError}</p>
+            )}
+          </div>
+
+          {/* Classement */}
+          {highscores.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                🏆 Top 5 des meilleurs scores
+              </h3>
+              <div className="space-y-2">
+                {highscores.slice(0, 5).map((score, index) => (
+                  <div
+                    key={score.id}
+                    className={`rounded-lg p-3 flex items-center justify-between ${
+                      score.id === currentScoreId
+                        ? "bg-yellow-600 bg-opacity-30 border-2 border-yellow-500"
+                        : "bg-gray-800 bg-opacity-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">
+                        {index === 0
+                          ? "🥇"
+                          : index === 1
+                            ? "🥈"
+                            : index === 2
+                              ? "🥉"
+                              : `#${index + 1}`}
+                      </span>
+                      <div>
+                        <p className="text-white font-semibold">
+                          {score.playerName}
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          {new Date(score.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-yellow-400 font-bold text-lg">
+                      {score.score.toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              onClick={onResetLevel}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+            >
+              <RotateCw size={18} /> Rejouer ce niveau
+            </button>
+            {hasNextLevel ? (
+              <button
+                onClick={() => navigate(`/game/${currentLevelId + 1}`)}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                Niveau suivant
+                <ChevronRight size={18} />
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate("/")}
+                className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+              >
+                <Home size={18} /> Retour à l'accueil
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
+export default VictoryModal
