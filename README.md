@@ -4,39 +4,39 @@
 
 ### Page d’accueil
 
-- [ ] Nom du jeu
-- [ ] Texte de contexte
-- [ ] Champ de saisie du pseudo
-- [ ] Bouton **Jouer**
+- [x] Nom du jeu
+- [x] Texte de contexte
+- [x] Champ de saisie du pseudo
+- [x] Bouton **Jouer**
 
 ### Écran de jeu
 
-- [ ] Grille chargée depuis l’API
-- [ ] Tuiles cliquables
-- [ ] Révélation : mur / chemin / départ / sortie
-- [ ] Position du joueur visible
-- [ ] Révélation limitée aux tuiles adjacentes
-- [ ] Case start révélée au lancement
+- [x] Grille chargée depuis l’API
+- [x] Tuiles cliquables
+- [x] Révélation : mur / chemin / départ / sortie
+- [x] Position du joueur visible
+- [x] Révélation limitée aux tuiles adjacentes
+- [x] Case start révélée au lancement
 
 ### Fin de partie & scores
 
-- [ ] Écran de fin
-- [ ] Victoire / Défaite
-- [ ] Score simple (temps, tuiles…)
-- [ ] Enregistrement pseudo + score
-- [ ] Affichage des highscores
+- [x] Écran de fin
+- [x] Victoire / Défaite
+- [x] Score simple (temps, tuiles…)
+- [x] Enregistrement pseudo + score
+- [x] Affichage des highscores
 
 ### API
 
-- [ ] Récupération d’au moins un niveau
-- [ ] État de chargement
-- [ ] Message d’erreur simple
+- [x] Récupération d’au moins un niveau
+- [x] État de chargement
+- [x] Message d’erreur simple
 
 ### Technique
 
-- [ ] React
-- [ ] Routing ou gestion par états
-- [ ] Composants : Game / Grid / Tile / Score
+- [x] React
+- [x] Routing ou gestion par états
+- [x] Composants : Game / Grid / Tile / Score
 
 ---
 
@@ -44,23 +44,23 @@
 
 ### Gameplay
 
-- [ ] Combat :
-  - [ ] Arme → victoire automatique
-  - [ ] Sans arme → case bloquée
-- [ ] Inventaire basique
-- [ ] Récupération de clés
-- [ ] Portes (D:color) avec clé correspondante
-- [ ] Obstacle / objet / piège (au moins 1)
+- [x] Combat :
+  - [x] Arme → victoire automatique
+  - [x] Sans arme → case bloquée
+- [x] Inventaire basique
+- [x] Récupération de clés
+- [x] Portes (D:color) avec clé correspondante
+- [x] Obstacle / objet / piège (au moins 1)
 
 ### API
 
-- [ ] Ennemis ou obstacles issus de l’API
+- [x] Ennemis ou obstacles issus de l’API
 
 ### Technique
 
-- [ ] Composants dédiés (BattleModal, Inventory)
-- [ ] Gestion propre des états
-- [ ] Hooks React
+- [x] Composants dédiés (BattleModal, Inventory)
+- [x] Gestion propre des états
+- [x] Hooks React
 
 ---
 
@@ -78,23 +78,23 @@
 
 ### API
 
-- [ ] Plusieurs niveaux ou niveau bien paramétré
-- [ ] API réellement exploitée
+- [x] Plusieurs niveaux ou niveau bien paramétré
+- [x] API réellement exploitée
 
 ### Architecture
 
-- [ ] Logique combat isolée
-- [ ] Logique grille isolée
-- [ ] Composants réutilisables
-- [ ] Peu de duplication
-- [ ] Commentaires utiles
+- [x] Logique combat isolée
+- [x] Logique grille isolée
+- [x] Composants réutilisables
+- [x] Peu de duplication
+- [x] Commentaires utiles
 
 ### UI / UX
 
 - [ ] HP visibles
-- [ ] Inventaire visible
+- [x] Inventaire visible
 - [ ] Indicateur (niveau, tuiles…)
-- [ ] Messages clairs
+- [x] Messages clairs
 
 ---
 
@@ -102,8 +102,8 @@
 
 ### Gameplay
 
-- [ ] Plusieurs niveaux distincts
-- [ ] Passage entre niveaux
+- [x] Plusieurs niveaux distincts
+- [x] Passage entre niveaux
 - [ ] Score avancé :
   - [ ] temps
   - [ ] combats
@@ -114,22 +114,22 @@
 ### Améliorations
 
 - [ ] Timer
-- [ ] Historique des scores (localStorage)
+- [x] Historique des scores (Base de Données Vercel)
 - [ ] Variantes de gameplay
 
 ### Technique
 
-- [ ] Composants factorisés (Tile, Modal, StatusBar…)
-- [ ] Hooks personnalisés (useBattle, useInventory, useLevel)
-- [ ] Code propre et cohérent
+- [x] Composants factorisés (Tile, Modal, StatusBar…)
+- [x] Hooks personnalisés (useBattle, useInventory, useLevel)
+- [x] Code propre et cohérent
 
 ### UI / UX
 
-- [ ] Palette cohérente
-- [ ] Typographie lisible
-- [ ] Icônes
+- [x] Palette cohérente
+- [x] Typographie lisible
+- [x] Icônes
 - [ ] Animations
-- [ ] Expérience fluide
+- [x] Expérience fluide
 
 # Maze Quest 🎮
 
