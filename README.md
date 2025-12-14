@@ -68,13 +68,13 @@
 
 ### Gameplay
 
-- [ ] Plusieurs types d’ennemis
-- [ ] Stats différentes (HP, attaque)
-- [ ] Dégâts selon l’arme
-- [ ] Plusieurs objets / obstacles
-- [ ] HP persistants
-- [ ] Conditions de victoire claires
-- [ ] Conditions de défaite claires
+- [x] Plusieurs types d’ennemis
+- [x] Stats différentes (HP, attaque)
+- [x] Dégâts selon l’arme
+- [x] Plusieurs objets / obstacles
+- [x] HP persistants
+- [x] Conditions de victoire claires
+- [x] Conditions de défaite claires
 
 ### API
 
@@ -91,9 +91,9 @@
 
 ### UI / UX
 
-- [ ] HP visibles
+- [x] HP visibles
 - [x] Inventaire visible
-- [ ] Indicateur (niveau, tuiles…)
+- [x] Indicateur (niveau, tuiles…)
 - [x] Messages clairs
 
 ---

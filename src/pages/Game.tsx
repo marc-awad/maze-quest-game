@@ -4,7 +4,8 @@ import { RotateCw, Home, AlertTriangle } from "lucide-react"
 
 // Composants
 import VictoryModal from "../components/VictoryModal"
-import BattleModal from "../components/BattleModal"
+import HealthBar from "../components/HealthBar"
+import AdvancedBattleModal from "../components/AdvancedBattleModal"
 import Inventory from "../components/Inventory"
 import Grid from "../components/Grid"
 
@@ -13,10 +14,15 @@ import { usePlayer } from "../utils/PlayerContext"
 import { useInventory } from "../hooks/useInventory"
 import { useGameLevel } from "../hooks/useGameLevel"
 import { useGameState } from "../hooks/useGameState"
-import { useBattle } from "../hooks/useBattle"
+import { useAdvancedBattle } from "../hooks/useAdvancedBattle"
 import { useTileInteraction } from "../hooks/useTileInteraction"
 import { usePlayerMovement } from "../hooks/usePlayerMovement"
 import { useHighscore } from "../hooks/useHighscore"
+import { usePlayerHP } from "../hooks/usePlayerHP"
+
+// Types
+import type { Enemy } from "../hooks/types"
+import type { BattleResult } from "../hooks/types"
 
 /**
  * Composant principal du jeu
@@ -38,9 +44,13 @@ export default function Game() {
     moveCount,
     revealTile,
     movePlayer,
+    setGameStatus,
     calculateScore,
     resetGameState,
   } = useGameState(level)
+
+  // Hook : HP du joueur
+  const { playerHP, maxHP, setHP, resetHP } = usePlayerHP(level)
 
   // Hook : Inventaire (armes, clés, objets)
   const {
@@ -51,14 +61,15 @@ export default function Game() {
     reset: resetInventory,
   } = useInventory()
 
-  // Hook : Combats
+  // Hook : Combats avancés
   const {
     currentBattle,
     isEnemyDefeated,
     startBattle,
+    executeTurn,
     endBattle,
     resetBattles,
-  } = useBattle()
+  } = useAdvancedBattle()
 
   // Hook : Interactions avec les tuiles
   const {
@@ -105,6 +116,25 @@ export default function Game() {
   }, [levelId, navigate])
 
   /**
+   * Récupère les dégâts de l'arme du joueur
+   */
+  const getWeaponDamage = useCallback((): number => {
+    // Récupérer l'arme du joueur
+    const weapon = inventory.find((item) => item.type === "weapon")
+
+    if (!weapon) return 5 // Dégâts de base si pas d'arme (ne devrait pas arriver)
+
+    // Mapping des dégâts par arme
+    const weaponDamages: Record<string, number> = {
+      sword: 15,
+      axe: 20,
+      dagger: 10,
+    }
+
+    return weaponDamages[weapon.id] || 15
+  }, [inventory])
+
+  /**
    * Gestion du clic sur une tuile
    * Centralise toute la logique d'interaction
    */
@@ -138,6 +168,17 @@ export default function Game() {
       // === GESTION DES MONSTRES ===
       if (tileType.startsWith("M:")) {
         const monsterType = tileType.split(":")[1]
+
+        // Récupérer les données de l'ennemi depuis l'API
+        const enemyData = level.enemies.find(
+          (e: Enemy) => e.type === monsterType
+        )
+
+        if (!enemyData) {
+          console.error(`Ennemi ${monsterType} introuvable dans le catalogue`)
+          return
+        }
+
         const interaction = handleMonsterInteraction(
           monsterType,
           row,
@@ -148,7 +189,9 @@ export default function Game() {
 
         if (interaction === "blocked") return // Pas d'arme
         if (interaction === "battle") {
-          startBattle(monsterType, row, col)
+          // Démarrer le combat avec les stats complètes
+          const weaponDamage = getWeaponDamage()
+          startBattle(enemyData, row, col, maxHP, playerHP, weaponDamage)
           return // Combat en cours
         }
         // Si "defeated", continuer normalement
@@ -197,6 +240,9 @@ export default function Game() {
       hasWeapon,
       isEnemyDefeated,
       startBattle,
+      getWeaponDamage,
+      maxHP,
+      playerHP,
       movePlayer,
       addItem,
       createKeyItem,
@@ -208,22 +254,40 @@ export default function Game() {
   /**
    * Gestion de la fin d'un combat
    */
-  const handleBattleEnd = useCallback(() => {
-    const battlePosition = endBattle()
-    if (!battlePosition) return
+  const handleBattleEnd = useCallback(
+    (result: BattleResult) => {
+      const battleInfo = endBattle()
+      if (!battleInfo) return
 
-    // Révéler la tuile du monstre vaincu
-    const key = `${battlePosition.row}-${battlePosition.col}`
-    if (!revealedTiles.has(key)) {
-      revealTile(battlePosition.row, battlePosition.col)
+      // Mettre à jour les HP du joueur
+      setHP(result.finalPlayerHP)
+
+      // Si victoire : révéler la tuile et déplacer le joueur
+      if (result.victory) {
+        const key = `${battleInfo.position.row}-${battleInfo.position.col}`
+        if (!revealedTiles.has(key)) {
+          revealTile(battleInfo.position.row, battleInfo.position.col)
+        }
+        movePlayer(battleInfo.position.row, battleInfo.position.col)
+        console.log(`✅ Combat gagné ! HP restants: ${result.finalPlayerHP}`)
+      } else {
+        // Défaite : game over
+        setGameStatus("lost")
+        console.log("❌ Vous avez été vaincu...")
+      }
+    },
+    [endBattle, setHP, revealedTiles, revealTile, movePlayer, setGameStatus]
+  )
+
+  /**
+   * Gestion des tours de combat
+   */
+  const handleCombatTurn = useCallback(() => {
+    const result = executeTurn()
+    if (result) {
+      handleBattleEnd(result)
     }
-
-    // Déplacer le joueur sur la position du monstre
-    movePlayer(battlePosition.row, battlePosition.col)
-    console.log(
-      `✅ Combat terminé, joueur à [${battlePosition.row}, ${battlePosition.col}]`
-    )
-  }, [endBattle, revealedTiles, revealTile, movePlayer])
+  }, [executeTurn, handleBattleEnd])
 
   /**
    * Gestion des touches du clavier (flèches directionnelles)
@@ -292,6 +356,7 @@ export default function Game() {
     resetBattles() // Reset ennemis
     resetMessages() // Reset messages
     resetHighscore() // Reset état highscore
+    resetHP() // Reset HP du joueur
   }, [
     resetLevel,
     resetGameState,
@@ -299,6 +364,7 @@ export default function Game() {
     resetBattles,
     resetMessages,
     resetHighscore,
+    resetHP,
   ])
 
   // === RENDU CONDITIONNEL ===
@@ -353,7 +419,12 @@ export default function Game() {
             </span>
             <span>•</span>
             <span className="font-semibold">
-              Statut: {gameStatus === "won" ? "🎉 GAGNÉ" : "En cours"}
+              Statut:{" "}
+              {gameStatus === "won"
+                ? "🎉 GAGNÉ"
+                : gameStatus === "lost"
+                  ? "💀 PERDU"
+                  : "En cours"}
             </span>
           </div>
 
@@ -372,6 +443,16 @@ export default function Game() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Barre de vie du joueur */}
+          <div className="mt-4 max-w-md mx-auto">
+            <HealthBar
+              currentHP={playerHP}
+              maxHP={maxHP}
+              label="Votre santé"
+              size="large"
+            />
           </div>
 
           {/* Inventaire */}
@@ -410,11 +491,29 @@ export default function Game() {
           gameStatus={gameStatus}
         />
 
-        {/* Modal de combat */}
+        {/* Modal de combat avancé */}
         {currentBattle && (
-          <BattleModal
-            enemyName={currentBattle.enemyName}
+          <AdvancedBattleModal
+            enemyName={currentBattle.enemy.name}
+            enemyIcon={currentBattle.enemy.icon}
+            combatState={currentBattle.combatState}
+            onAttack={handleCombatTurn}
             onBattleEnd={handleBattleEnd}
+            battleResult={
+              currentBattle.combatState.playerHP <= 0 ||
+              currentBattle.combatState.enemyHP <= 0
+                ? {
+                    victory: currentBattle.combatState.enemyHP <= 0,
+                    finalPlayerHP: currentBattle.combatState.playerHP,
+                    damageDealt:
+                      currentBattle.combatState.enemyMaxHP -
+                      currentBattle.combatState.enemyHP,
+                    damageTaken:
+                      currentBattle.combatState.playerMaxHP -
+                      currentBattle.combatState.playerHP,
+                  }
+                : null
+            }
           />
         )}
 
@@ -434,6 +533,33 @@ export default function Game() {
             onResetLevel={handleResetLevel}
             onRetry={() => saveHighscore(0)}
           />
+        )}
+
+        {/* Modal de défaite */}
+        {gameStatus === "lost" && (
+          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-gradient-to-br from-red-900 to-gray-900 rounded-2xl p-8 max-w-md mx-4 text-center border-4 border-red-600 shadow-2xl">
+              <h2 className="text-5xl font-bold text-white mb-4">
+                ☠️ Game Over
+              </h2>
+              <p className="text-white text-lg mb-2">Vous avez été vaincu...</p>
+              <p className="text-gray-300 text-sm mb-6">
+                HP restants : {playerHP} / {maxHP}
+              </p>
+              <button
+                onClick={handleResetLevel}
+                className="bg-white text-red-900 px-8 py-3 rounded-lg font-bold hover:bg-gray-200 transition-all active:scale-95 shadow-lg"
+              >
+                🔄 Réessayer
+              </button>
+              <button
+                onClick={() => navigate("/")}
+                className="mt-3 bg-gray-700 hover:bg-gray-600 text-white px-8 py-3 rounded-lg font-bold transition-all active:scale-95 block mx-auto"
+              >
+                🏠 Retour à l'accueil
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
