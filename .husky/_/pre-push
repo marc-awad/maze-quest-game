@@ -1,17 +1,2 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-echo "🔧 Vérification du build et des tests avant push..."
-npm run build
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed. Aborting push."
-  exit 1
-fi
-
-npm test -- --watchAll=false
-if [ $? -ne 0 ]; then
-  echo "❌ Tests failed. Aborting push."
-  exit 1
-fi
-
-echo "✅ Build et tests OK. Push autorisé."
+#!/usr/bin/env sh
+. "$(dirname "$0")/h"
