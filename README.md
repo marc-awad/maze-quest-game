@@ -1,5 +1,18 @@
 # Notation
 
+> **🚀 Travaux post-évaluation orale (14 décembre 2025)**
+>
+> Après la présentation orale du projet, les améliorations suivantes ont été apportées :
+>
+> - ✅ **#35** - Page de règles et tutoriel complète avec sections accordéon interactives
+> - ✅ **#32, #33** - Système de scoring avancé avec timer de jeu intégré
+> - ✅ **#44** - Mise en place de Husky pour pre-push hooks (build + tests automatiques)
+> - ✅ Amélioration du système de combat avancé avec gestion des HP
+> - ✅ Affichage complet des ennemis, inventaire et collecte d'objets
+> - ✅ Documentation complète des critères de notation
+>
+> **Total des commits post-évaluation : 6 commits** sur les fonctionnalités avancées (niveau 18/20)
+
 ## ✅ Niveau **10 / 20** – MVP complet
 
 ### Page d’accueil
