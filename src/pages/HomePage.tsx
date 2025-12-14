@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { usePlayer } from "../utils/PlayerContext"
 import { fetchLevels } from "../services/apiService"
 import type { LevelSummary } from "../services/apiService"
-import { Play, Loader, Sword, Key, Flame } from "lucide-react"
+import { Play, Loader, Sword, Key, Flame, BookOpen } from "lucide-react"
 
 export default function HomePage() {
   const { playerName, setPlayerName } = usePlayer()
@@ -65,10 +65,21 @@ export default function HomePage() {
         {/* En-tête */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-white mb-4">MazeQuest</h1>
-          <p className="text-white opacity-90 text-lg">
+          <p className="text-white opacity-90 text-lg mb-6">
             Explorez les labyrinthes, récupérez des clés et combattez des
             ennemis pour atteindre la sortie !
           </p>
+
+          {/* Bouton Règles - Centré */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => navigate("/rules")}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors inline-flex items-center gap-2"
+            >
+              <BookOpen size={20} />
+              Voir les règles
+            </button>
+          </div>
         </div>
 
         {/* Saisie du pseudo */}
